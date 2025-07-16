@@ -37,11 +37,11 @@ class Student(Base):
     tenant = relationship("Tenant", back_populates="students")
     grades = relationship("Grade", back_populates="student")
 
-__table_args__ = (
-    UniqueConstraint("email", "tenant_id", name="uq_student_email_tenant"),
-    {"schema": None},
-)
-
+    # Composite unique constraint on email + tenant_id
+    __table_args__ = (
+        UniqueConstraint("email", "tenant_id", name="uq_student_email_tenant"),
+        {"schema": None},
+    )
 
 
 class Teacher(Base):
