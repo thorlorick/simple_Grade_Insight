@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  gradeinsight-app:
+    build: .
+    container_name: gradeinsight-app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://gradeuser:gradepass@postgres:5432/gradeinsight
+    depends_on:
+      - postgres
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - gradeinsight-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: gradeinsight
+      POSTGRES_USER: gradeuser
+      POSTGRES_PASSWORD: gradepass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - gradeinsight-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  gradeinsight-network:
+    driver: bridge
