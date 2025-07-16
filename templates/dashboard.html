@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Insight - Teacher Dashboard</title>
+    <link rel="stylesheet" href="/static/css/compact.css">
+    <script src="/static/js/shared-utils.js"></script> 
+</head>
+<body>
+    <div class="header">
+        <h1>Grade Insight</h1>
+        <h2>When GOOD isn't enough.</h2>
+    </div>
+    <div class="navigation">
+        <a href="/api/downloadTemplate" class="nav-button active">📊 Download CSV Template</a>
+        <a href="/upload" class="nav-button">📤 Upload CSV</a>
+        <!-- <a href="/student-portal" class="nav-button">👥 Students</a> -->
+    </div>
+    <div class="container">
+        <div class="controls">
+            <div class="search-section">
+                <!-- Student Search -->
+                <div class="search-row">
+                    <label class="search-label">Search Students:</label>
+                    <input 
+                        type="text" 
+                        id="studentSearch" 
+                        class="search-input" 
+                        placeholder="Search by student name or email..."
+                        autocomplete="off"
+                    >
+                    <button id="clearStudentSearch" class="clear-search" style="display: none;">Clear</button>
+                </div>
+                
+                <!-- Tag Search -->
+                <div class="search-row">
+                    <label class="search-label">Filter Assignments:</label>
+                    <input 
+                        type="text" 
+                        id="tagSearch" 
+                        class="search-input" 
+                        placeholder="Search by assignment name or tag..."
+                        autocomplete="off"
+                    >
+                    <button id="clearTagSearch" class="clear-search" style="display: none;">Clear</button>
+                </div>
+                
+                <div id="searchStats" class="search-stats"></div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-wrapper">
+                <table class="grades-table solution3-table" id="gradesTable">
+                    <thead>
+                        <tr id="tableHeader">
+                            <th class="student-info">Student</th>
+                            <!-- Assignment headers will be added here dynamically -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="100%" class="loading">Loading grades...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
