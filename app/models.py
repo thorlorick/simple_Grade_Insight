@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Tex
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
+from sqlalchemy import UniqueConstraint
 
 Base = declarative_base()
 
@@ -35,11 +36,12 @@ class Student(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="students")
     grades = relationship("Grade", back_populates="student")
-    
-    # Composite unique constraint on email + tenant_id
-    __table_args__ = (
-        {"schema": None},
-    )
+
+__table_args__ = (
+    UniqueConstraint("email", "tenant_id", name="uq_student_email_tenant"),
+    {"schema": None},
+)
+
 
 
 class Teacher(Base):
@@ -87,15 +89,21 @@ class Grade(Base):
     comments = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     student = relationship("Student", back_populates="grades")
     teacher = relationship("Teacher", back_populates="grades")
     assignment = relationship("Assignment", back_populates="grades")
     tenant = relationship("Tenant", back_populates="grades")
-    
-    # Composite unique constraint to prevent duplicate grades for same student/assignment
+
+    # Composite unique constraint to prevent duplicate grades for same student/assignment/tenant
     __table_args__ = (
+        UniqueConstraint(
+            "student_id",
+            "assignment_id",
+            "tenant_id",
+            name="uq_student_assignment_tenant"
+        ),
         {"schema": None},
     )
 
