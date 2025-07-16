@@ -98,7 +98,7 @@ Brown,Charlie,charlie.brown@example.com,92,85,89
 - Each school is fully isolated as a tenant
 - School-specific subdomains (e.g., `school1.gradeinsight.com`)
 - PostgreSQL supports logical separation via schemas or table prefixes
-- Tenants are identified by ???????????
+- Tenants are identified by by their own URL (tenant1.gradeinsight.com or gradeinsight.com/tenant1)
 ---
 
 ## Roadmap
