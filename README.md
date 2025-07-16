@@ -9,7 +9,7 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 
 ## ✨ Features
 
-- 🧑🏫 Flexible CSV Upload — Use Grade Insight’s template, Google Classroom exports, or any `.csv` that follows our format
+- 🧑🏫 Flexible CSV Upload — Use Grade Insight’s template, or any `.csv` that follows our simplified format
 - 🔍 Automatic Data Cleaning — Smart parsing and normalization of grade data
 - 📈 Student/Parent Dashboard — Clean, simple progress visualization
 - 🔄 Smart Updates — Intelligent duplicate detection and data merging
@@ -21,15 +21,15 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 ## What It Does
 
 ### 🧑‍🏫 For Teachers
-- Upload CSV files with student grades and assignments
-- Use tags to organize classes, subjects, or terms
+- Upload CSV files with student assignments and grades
+- Use tags to organize classes, subjects, or assignments
 - Each teacher’s data is isolated within their school
 - No training or setup required — just upload and go
 
 ### 👪 For Parents
 - See real-time updates on student progress
-- View assignments, marks, by teacher/class
-- Filter by custom tags
+- View assignments, marks, teacher comments in almost real time
+- Filter by custom tags for easy subject identification
 - Access through a school-branded portal (e.g., `yourschool.gradeinsight.com`)
 
 ### 🎓 For Students
