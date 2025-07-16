@@ -1091,3 +1091,208 @@ document.addEventListener('DOMContentLoaded', () => {
         new StudentGradePortal();
     }
 });
+
+// Shared utilities for Grade Insight application
+
+const GradeUtils = {
+    // HTML escape function for security
+    escapeHtml: function(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    // Format percentage with proper styling
+    formatPercentage: function(percentage) {
+        if (percentage === null || percentage === undefined || isNaN(percentage)) {
+            return 'N/A';
+        }
+        return `${Math.round(percentage)}%`;
+    },
+
+    // Get letter grade from percentage
+    getLetterGrade: function(percentage) {
+        if (percentage >= 90) return 'A';
+        if (percentage >= 80) return 'B';
+        if (percentage >= 70) return 'C';
+        if (percentage >= 60) return 'D';
+        return 'F';
+    },
+
+    // Get CSS class for grade styling
+    getGradeClass: function(percentage) {
+        if (percentage >= 90) return 'grade-a';
+        if (percentage >= 80) return 'grade-b';
+        if (percentage >= 70) return 'grade-c';
+        if (percentage >= 60) return 'grade-d';
+        return 'grade-f';
+    },
+
+    // Format date string
+    formatDate: function(dateString) {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        } catch (e) {
+            return 'N/A';
+        }
+    },
+
+    // Debounce function for search inputs
+    debounce: function(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    // Show loading spinner
+    showLoading: function(element) {
+        if (element) {
+            element.innerHTML = '<div class="loading">Loading...</div>';
+        }
+    },
+
+    // Show error message
+    showError: function(element, message) {
+        if (element) {
+            element.innerHTML = `<div class="error">${this.escapeHtml(message)}</div>`;
+        }
+    },
+
+    // Show success message
+    showSuccess: function(element, message) {
+        if (element) {
+            element.innerHTML = `<div class="success">${this.escapeHtml(message)}</div>`;
+        }
+    },
+
+    // Clear content
+    clearContent: function(element) {
+        if (element) {
+            element.innerHTML = '';
+        }
+    },
+
+    // Make API request with error handling
+    apiRequest: async function(url, options = {}) {
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.detail || `Request failed with status ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('API Request Error:', error);
+            throw error;
+        }
+    },
+
+    // Filter students by search term
+    filterStudents: function(students, searchTerm) {
+        if (!searchTerm) return students;
+        
+        const term = searchTerm.toLowerCase();
+        return students.filter(student => 
+            student.first_name.toLowerCase().includes(term) ||
+            student.last_name.toLowerCase().includes(term) ||
+            student.email.toLowerCase().includes(term)
+        );
+    },
+
+    // Filter assignments by search term
+    filterAssignments: function(assignments, searchTerm) {
+        if (!searchTerm) return assignments;
+        
+        const term = searchTerm.toLowerCase();
+        return assignments.filter(assignment => 
+            assignment.toLowerCase().includes(term)
+        );
+    },
+
+    // Calculate overall grade for a student
+    calculateOverallGrade: function(grades) {
+        if (!grades || Object.keys(grades).length === 0) return null;
+        
+        let totalPoints = 0;
+        let totalPossible = 0;
+        
+        for (const assignment in grades) {
+            const grade = grades[assignment];
+            if (grade && grade.score !== null && grade.max_points !== null) {
+                totalPoints += grade.score;
+                totalPossible += grade.max_points;
+            }
+        }
+        
+        return totalPossible > 0 ? (totalPoints / totalPossible * 100) : null;
+    },
+
+    // Validate email format
+    validateEmail: function(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    },
+
+    // Validate CSV file
+    validateCSVFile: function(file) {
+        if (!file) return { valid: false, error: 'No file selected' };
+        
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            return { valid: false, error: 'Please select a CSV file' };
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB limit
+            return { valid: false, error: 'File size must be less than 10MB' };
+        }
+        
+        return { valid: true };
+    },
+
+    // Format file size
+    formatFileSize: function(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+
+    // Initialize search functionality
+    initializeSearch: function(searchInput, clearButton, filterFunction) {
+        const debouncedFilter = this.debounce(filterFunction, 300);
+        
+        searchInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            clearButton.style.display = value ? 'inline-block' : 'none';
+            debouncedFilter(value);
+        });
+        
+        clearButton.addEventListener('click', function() {
+            searchInput.value = '';
+            clearButton.style.display = 'none';
+            filterFunction('');
+        });
+    }
+};
+
+// Export for potential module use
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = GradeUtils;
+}
+
