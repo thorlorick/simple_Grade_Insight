@@ -6,9 +6,19 @@ echo "🚀 Setting up admin tenant..."
 # Make sure we're in the right directory
 cd "$(dirname "$0")"
 
+# Check if virtual environment exists, create if not
+if [ ! -d "venv" ]; then
+    echo "🔧 Creating virtual environment..."
+    python3 -m venv venv
+fi
+
+# Activate virtual environment
+echo "🔌 Activating virtual environment..."
+source venv/bin/activate
+
 # Install/update dependencies if needed
 echo "📦 Installing dependencies..."
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 
 # Run the admin tenant creation
 echo "🏗️  Creating admin tenant..."
