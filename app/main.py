@@ -1,18 +1,16 @@
 from fastapi import FastAPI, Request, HTTPException, Depends, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, Response, JSONResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import pandas as pd
 import io
 import os
-import json
 from datetime import datetime
-from typing import List, Optional
 
-from app.database import get_db, get_tenant_from_host, engine
-from app.models import Grade, Student, Teacher, Assignment, Tenant, Base
+from database import get_db, get_tenant_from_host, engine
+from models import Grade, Student, Teacher, Assignment, Tenant, Base
 
 app = FastAPI(title="Grade Insight")
 
@@ -20,14 +18,41 @@ app = FastAPI(title="Grade Insight")
 def create_tables():
     Base.metadata.create_all(bind=engine)
 
+# Create admin tenant if no tenants exist
+def ensure_admin_tenant():
+    """Create admin tenant if no tenants exist in database"""
+    db = next(get_db())
+    try:
+        # Check if ANY tenant exists
+        tenant_count = db.query(Tenant).count()
+        
+        if tenant_count == 0:
+            # No tenants exist, create admin tenant
+            admin_tenant = Tenant(
+                id="admin",
+                name="Admin Tenant - Default"
+            )
+            db.add(admin_tenant)
+            db.commit()
+            print("✅ Created admin tenant (first tenant in database)")
+        else:
+            print(f"👍 Database already has {tenant_count} tenant(s)")
+    
+    except Exception as e:
+        print(f"❌ Error checking/creating admin tenant: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Initialize on startup
 create_tables()
+ensure_admin_tenant()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
 @app.get("/", response_class=HTMLResponse)
-@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     tenant_id = get_tenant_from_host(request.headers.get("host"))
     
@@ -47,184 +72,125 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
 
 @app.get("/upload", response_class=HTMLResponse)
-async def upload_page(request: Request, db: Session = Depends(get_db)):
-    tenant_id = get_tenant_from_host(request.headers.get("host"))
-    
-    # Get existing tags for this tenant
-    tags = db.query(Tag).filter(Tag.tenant_id == tenant_id).all()
-    
-    return templates.TemplateResponse(
-        "upload.html", 
-        {"request": request, "tags": tags}
-    )
+async def upload_page(request: Request):
+    return templates.TemplateResponse("upload.html", {"request": request})
 
 
 @app.post("/upload")
 async def upload_csv(
     request: Request,
     file: UploadFile = File(...),
-    tags: Optional[str] = Form(None),  # JSON string of selected tag IDs
-    new_tags: Optional[str] = Form(None),  # Comma-separated new tag names
+    teacher_name: str = Form(...),
+    class_tag: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        
-        # Get or create tenant
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
-            db.add(tenant)
-            db.commit()
-
-        # Read CSV content
-        content = await file.read()
-        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
-
-        # Validate CSV structure
-        required_columns = ['Last Name', 'First Name', 'Email']
-        if not all(col in df.columns for col in required_columns):
-            raise HTTPException(
-                status_code=400, 
-                detail=f"CSV must contain columns: {', '.join(required_columns)}"
-            )
-
-        # Process tags
-        selected_tag_ids = []
-        if tags:
-            try:
-                selected_tag_ids = json.loads(tags)
-            except json.JSONDecodeError:
-                pass
-
-        # Create new tags
-        new_tag_objects = []
-        if new_tags:
-            tag_names = [name.strip() for name in new_tags.split(',') if name.strip()]
-            for tag_name in tag_names:
-                # Check if tag already exists
-                existing_tag = db.query(Tag).filter(
-                    Tag.name == tag_name,
-                    Tag.tenant_id == tenant_id
-                ).first()
-                
-                if not existing_tag:
-                    new_tag = Tag(name=tag_name, tenant_id=tenant_id)
-                    db.add(new_tag)
-                    db.commit()
-                    db.refresh(new_tag)
-                    new_tag_objects.append(new_tag)
-                    selected_tag_ids.append(new_tag.id)
-
-        # Get all selected tags
-        all_selected_tags = db.query(Tag).filter(
-            Tag.id.in_(selected_tag_ids),
-            Tag.tenant_id == tenant_id
-        ).all()
-
-        # Create default teacher if needed
-        default_teacher = db.query(Teacher).filter(
-            Teacher.tenant_id == tenant_id
-        ).first()
-        
-        if not default_teacher:
-            default_teacher = Teacher(name="System", tenant_id=tenant_id)
-            db.add(default_teacher)
-            db.commit()
-            db.refresh(default_teacher)
-
-        # Determine assignment columns (exclude student info columns)
-        assignment_columns = [col for col in df.columns if col not in required_columns]
-
-        # Default max points
-        DEFAULT_MAX_POINTS = 100.0
-
-        # Cache assignments by name for this tenant
-        assignments_cache = {}
-
-        for col in assignment_columns:
-            assignment = db.query(Assignment).filter(
-                Assignment.name == col,
-                Assignment.tenant_id == tenant_id
-            ).first()
-            if not assignment:
-                assignment = Assignment(
-                    name=col,
-                    tenant_id=tenant_id,
-                    max_points=DEFAULT_MAX_POINTS
-                )
-                db.add(assignment)
-                db.commit()
-                db.refresh(assignment)
-            assignments_cache[col] = assignment
-
-        # Process each row (student)
-        for _, row in df.iterrows():
-            first_name = str(row["First Name"]).strip()
-            last_name = str(row["Last Name"]).strip()
-            email = str(row["Email"]).strip().lower()
-
-            # Get or create student by email + tenant
-            student = db.query(Student).filter(
-                Student.email == email,
-                Student.tenant_id == tenant_id
-            ).first()
-
-            if not student:
-                student = Student(
-                    first_name=first_name,
-                    last_name=last_name,
-                    email=email,
-                    tenant_id=tenant_id
-                )
-                db.add(student)
-                db.commit()
-                db.refresh(student)
-
-            # Create grades for each assignment column
-            for assignment_name in assignment_columns:
-                score_value = row[assignment_name]
-                if pd.isna(score_value) or score_value == '':
-                    continue  # skip if no grade
-
-                try:
-                    score = float(score_value)
-                except (ValueError, TypeError):
-                    continue  # skip invalid scores
-
-                assignment = assignments_cache[assignment_name]
-
-                # Check if grade already exists
-                existing_grade = db.query(Grade).filter(
-                    Grade.student_id == student.id,
-                    Grade.assignment_id == assignment.id,
-                    Grade.tenant_id == tenant_id
-                ).first()
-
-                if existing_grade:
-                    # Update existing grade
-                    existing_grade.score = score
-                    existing_grade.teacher_id = default_teacher.id
-                else:
-                    # Create new grade
-                    grade = Grade(
-                        student_id=student.id,
-                        teacher_id=default_teacher.id,
-                        assignment_id=assignment.id,
-                        tenant_id=tenant_id,
-                        score=score
-                    )
-                    db.add(grade)
-
-                # Associate tags with assignment (many-to-many relationship)
-                # This would require a proper many-to-many table setup in models.py
-
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    # Get or create tenant
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
+        db.add(tenant)
         db.commit()
-        return JSONResponse({"message": "CSV uploaded successfully"})
 
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    # Read CSV content
+    content = await file.read()
+    df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+
+    # Get or create teacher
+    teacher = db.query(Teacher).filter(
+        Teacher.name == teacher_name,
+        Teacher.tenant_id == tenant_id
+    ).first()
+
+    if not teacher:
+        teacher = Teacher(name=teacher_name, tenant_id=tenant_id)
+        db.add(teacher)
+        db.commit()
+        db.refresh(teacher)
+
+    # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
+    assignment_columns = [col for col in df.columns if col not in ("Last Name", "First Name", "Email")]
+
+    # Default max points
+    DEFAULT_MAX_POINTS = 100.0
+
+    # Cache assignments by name for this tenant to avoid repeated queries
+    assignments_cache = {}
+
+    for col in assignment_columns:
+        assignment = db.query(Assignment).filter(
+            Assignment.name == col,
+            Assignment.tenant_id == tenant_id
+        ).first()
+        if not assignment:
+            assignment = Assignment(
+                name=col,
+                tenant_id=tenant_id,
+                max_points=DEFAULT_MAX_POINTS
+            )
+            db.add(assignment)
+            db.commit()
+            db.refresh(assignment)
+        assignments_cache[col] = assignment
+
+    # Process each row (student)
+    for _, row in df.iterrows():
+        first_name = row["First Name"]
+        last_name = row["Last Name"]
+        email = row["Email"]
+
+        # Get or create student by email + tenant
+        student = db.query(Student).filter(
+            Student.email == email,
+            Student.tenant_id == tenant_id
+        ).first()
+
+        if not student:
+            student = Student(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                tenant_id=tenant_id
+            )
+            db.add(student)
+            db.commit()
+            db.refresh(student)
+
+        # Create grades for each assignment column
+        for assignment_name in assignment_columns:
+            score_value = row[assignment_name]
+            if pd.isna(score_value):
+                continue  # skip if no grade
+
+            assignment = assignments_cache[assignment_name]
+
+            # Check if grade already exists (unique constraint)
+            existing_grade = db.query(Grade).filter(
+                Grade.student_id == student.id,
+                Grade.assignment_id == assignment.id,
+                Grade.tenant_id == tenant_id
+            ).first()
+
+            if existing_grade:
+                # Update existing grade
+                existing_grade.score = float(score_value)
+                existing_grade.teacher_id = teacher.id
+                existing_grade.class_tag = class_tag
+            else:
+                # New grade
+                grade = Grade(
+                    student_id=student.id,
+                    teacher_id=teacher.id,
+                    assignment_id=assignment.id,
+                    tenant_id=tenant_id,
+                    score=float(score_value),
+                    class_tag=class_tag
+                )
+                db.add(grade)
+
+    db.commit()
+    return {"message": "CSV uploaded successfully"}
 
 
 @app.get("/api/grades-table")
@@ -234,10 +200,6 @@ async def get_grades_table(request: Request, db: Session = Depends(get_db)):
     # Get all students for this tenant with their grades
     students = db.query(Student).filter(Student.tenant_id == tenant_id).all()
     
-    # Get all assignments for this tenant
-    assignments = db.query(Assignment).filter(Assignment.tenant_id == tenant_id).all()
-    assignment_names = [a.name for a in assignments]
-    
     students_data = []
     for student in students:
         grades = db.query(Grade).filter(
@@ -245,36 +207,25 @@ async def get_grades_table(request: Request, db: Session = Depends(get_db)):
             Grade.tenant_id == tenant_id
         ).all()
         
-        # Create a grades dict for quick lookup
-        grades_dict = {grade.assignment.name: grade for grade in grades}
+        grades_data = []
+        for grade in grades:
+            grades_data.append({
+                "assignment": grade.assignment.name,
+                "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
+                "score": grade.score,
+                "max_points": grade.assignment.max_points,
+                "tags": [grade.class_tag] if grade.class_tag else []
+            })
         
-        # Build student row data
-        student_row = {
+        students_data.append({
             "id": student.id,
             "first_name": student.first_name,
             "last_name": student.last_name,
             "email": student.email,
-            "grades": {}
-        }
-        
-        # Add grades for each assignment (or null if no grade)
-        for assignment_name in assignment_names:
-            if assignment_name in grades_dict:
-                grade = grades_dict[assignment_name]
-                student_row["grades"][assignment_name] = {
-                    "score": grade.score,
-                    "max_points": grade.assignment.max_points,
-                    "percentage": (grade.score / grade.assignment.max_points * 100) if grade.assignment.max_points > 0 else 0
-                }
-            else:
-                student_row["grades"][assignment_name] = None
-        
-        students_data.append(student_row)
+            "grades": grades_data
+        })
     
-    return {
-        "students": students_data,
-        "assignments": assignment_names
-    }
+    return {"students": students_data}
 
 
 @app.get("/api/student/{student_id}/grades")
@@ -317,8 +268,7 @@ async def get_student_by_email(email: str, request: Request, db: Session = Depen
             "assignment": grade.assignment.name,
             "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
             "score": grade.score,
-            "max_points": grade.assignment.max_points,
-            "percentage": (grade.score / grade.assignment.max_points * 100) if grade.assignment.max_points > 0 else 0
+            "max_points": grade.assignment.max_points
         })
     
     overall_percentage = (total_points / max_possible * 100) if max_possible > 0 else 0
@@ -385,4 +335,3 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-     
