@@ -11,8 +11,8 @@ import json
 from datetime import datetime
 from typing import List, Optional
 
-from database import get_db, get_tenant_from_host, engine
-from models import Grade, Student, Teacher, Assignment, Tenant, Base, Tag
+from app.database import get_db, get_tenant_from_host, engine
+from app.models import Grade, Student, Teacher, Assignment, Tenant, Base
 
 app = FastAPI(title="Grade Insight")
 
