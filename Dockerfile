@@ -40,6 +40,3 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 # Command to run the application
 # For development, use uvicorn directly
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# For production, uncomment the line below and comment out the uvicorn line above
-# CMD ["gunicorn", "main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
