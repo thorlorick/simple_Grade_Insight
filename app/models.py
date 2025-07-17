@@ -74,6 +74,7 @@ class Assignment(Base):
     # Relationships
     tenant = relationship("Tenant", back_populates="assignments")
     grades = relationship("Grade", back_populates="assignment")
+    tags = relationship("Tag", secondary=assignment_tags, back_populates="assignments")
 
 
 class Grade(Base):
