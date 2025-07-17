@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Environments
+.env
+.env.*
+.venv/
+env/
+ENV/
+
+# Docker Secrets (CRITICAL - Never commit these!)
+secrets/
+*.key
+*.secret
+
+# Logs and runtime files
+*.log
+*.pid
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Docker
+docker-compose.override.yml
+
+# VSCode settings
+.vscode/
+
+# Node / Frontend build artifacts (optional)
+static/js/*.min.js
+static/css/*.min.css
+
+# Testing
+.coverage
+.pytest_cache/
+
+# Misc
+*.sqlite3
+
+# Additional security files
+ssl/
+*.pem
+*.crt
+*.key
+config/local.json
+config/production.json
