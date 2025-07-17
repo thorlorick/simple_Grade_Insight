@@ -6,6 +6,26 @@ from sqlalchemy import UniqueConstraint
 
 Base = declarative_base()
 
+# Many-to-many relationship table for assignments and tags
+assignment_tags = Table(
+    'assignment_tags',
+    Base.metadata,
+    Column('assignment_id', Integer, ForeignKey('assignments.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+)
+
+class Tag(Base):
+    __tablename__ = 'tags'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    tenant_id = Column(String(100), nullable=False)
+    
+    # Many-to-many relationship with assignments
+    assignments = relationship("Assignment", secondary=assignment_tags, back_populates="tags")
+    
+    def __repr__(self):
+        return f"<Tag(name='{self.name}')>"
 
 class Tenant(Base):
     __tablename__ = "tenants"
@@ -107,29 +127,3 @@ class Grade(Base):
         ),
         {"schema": None},
     )
-
-
-# Many-to-many relationship table for assignments and tags
-assignment_tags = Table(
-    'assignment_tags',
-    Base.metadata,
-    Column('assignment_id', Integer, ForeignKey('assignments.id'), primary_key=True),
-    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
-)
-
-class Tag(Base):
-    __tablename__ = 'tags'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    tenant_id = Column(String(100), nullable=False)
-    
-    # Many-to-many relationship with assignments
-    assignments = relationship("Assignment", secondary=assignment_tags, back_populates="tags")
-    
-    def __repr__(self):
-        return f"<Tag(name='{self.name}')>"
-
-# Also add this to your existing Assignment model:
-# Add this relationship to your Assignment class:
-# tags = relationship("Tag", secondary=assignment_tags, back_populates="assignments")
