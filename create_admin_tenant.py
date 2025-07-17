@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to create an admin tenant for development and testing
+Follows the CSV template structure for consistency
 """
 import sys
 import os
@@ -10,7 +11,7 @@ from app.database import get_db
 from app.models import Tenant, Teacher, Tag
 
 def create_admin_tenant():
-    """Create admin tenant with some default data"""
+    """Create admin tenant with template-consistent default data"""
     db = next(get_db())
     
     try:
@@ -53,36 +54,15 @@ def create_admin_tenant():
         print(f"  Name: {admin_teacher.name}")
         print(f"  Email: {admin_teacher.email}")
         
-        # Create some default tags for admin
-        default_tags = [
-            "Homework",
-            "Quiz",
-            "Test",
-            "Project",
-            "Extra Credit",
-            "Participation"
-        ]
-        
-        created_tags = []
-        for tag_name in default_tags:
-            tag = Tag(
-                name=tag_name,
-                tenant_id="admin"
-            )
-            db.add(tag)
-            created_tags.append(tag)
-        
-        db.commit()
-        
-        print("✅ Created default tags:")
-        for tag in created_tags:
-            print(f"  - {tag.name}")
+        # Tags will be created automatically when you upload CSV files
+        # No need to pre-create any tags - keep it simple for now
         
         print("\n🎉 Admin tenant setup complete!")
         print("\nYou can now access:")
         print("  - Dashboard: http://localhost:8000/dashboard")
         print("  - Upload: http://localhost:8000/upload")
         print("  - API: http://localhost:8000/api/dashboard/stats")
+        print("\n📁 CSV Template: https://raw.githubusercontent.com/thorlorick/simple_Grade_Insight/refs/heads/main/CSV_Template.csv")
         
         return admin_tenant
         
@@ -125,6 +105,6 @@ def get_tenant_from_host(host: str) -> str:
 """)
 
 if __name__ == "__main__":
-    print("🚀 Creating admin tenant...")
+    print("🚀 Creating admin tenant with template-consistent structure...")
     create_admin_tenant()
     update_tenant_function_for_admin()
