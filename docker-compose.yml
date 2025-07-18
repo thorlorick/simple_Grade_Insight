@@ -6,6 +6,7 @@ services:
     container_name: gradeinsight-app
     ports:
       - "8080:8000"
+      - "443:443"
     environment:
       DATABASE_URL: postgresql+psycopg2://gradeuser:gradepass@postgres:5432/gradeinsight
     depends_on:
