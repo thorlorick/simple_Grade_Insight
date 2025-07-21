@@ -8,8 +8,8 @@ services:
       - "8081:8081"
       - "443:443"
     environment:
-      PORT: 8081
-      DATABASE_URL: postgresql+psycopg2://gradeuser:gradepass@postgres:5432/gradeinsight
+      PORT: ${PORT}
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       - postgres
     volumes:
@@ -23,9 +23,9 @@ services:
     image: postgres:15
     container_name: postgres
     environment:
-      POSTGRES_DB: gradeinsight
-      POSTGRES_USER: gradeuser
-      POSTGRES_PASSWORD: gradepass
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
