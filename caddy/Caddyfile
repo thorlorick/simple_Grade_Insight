@@ -9,7 +9,7 @@
         dns cloudflare {
             # Caddy will read the Cloudflare API token from the environment variable.
             # This environment variable will be set in your docker-compose.yml.
-            api_token ${CLOUDFLARE_API_TOKEN}
+            api_token {env.CLOUDFLARE_API_TOKEN}
         }
         # Optional: Provide an email address for ACME account registration and renewal notices.
         # email your-email@example.com
