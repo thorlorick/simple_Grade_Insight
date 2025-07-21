@@ -44,5 +44,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/')" || exit 1
 
 # Command to run both applications
-# Caddy will handle HTTPS and forward to uvicorn on localhost:8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8000 & caddy run --config Caddyfile"]
+# Caddy will handle HTTPS and forward to uvicorn on localhost:8081
+CMD ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8081 & caddy run --config Caddyfile"]
