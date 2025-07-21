@@ -10,15 +10,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set work directory
 WORKDIR /app
 
-# Install system dependencies required for psycopg2, compilation, and Caddy
+# Install system dependencies required for psycopg2 and compilation
+# REMOVE Caddy-specific installation commands from here.
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
-    curl \
-    gnupg \
-    && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
-    && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
-    && apt-get update && apt-get install -y caddy \
+    # Removed Caddy-related installations (curl, gnupg, caddy apt-get install)
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
@@ -37,13 +34,15 @@ RUN useradd --create-home --shell /bin/bash app \
 # Switch to non-root user
 USER app
 
-# Expose ports (80 for HTTP, 443 for HTTPS, 8081 for development)
-EXPOSE 80 443 8081
+# Expose port 8081 for internal communication within the Docker network.
+# This port will be accessed by the Caddy service.
+EXPOSE 8081
 
-# Health check (adjust URL path as needed)
+# Health check for your Uvicorn application.
+# It should check Uvicorn's internal port.
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8081/')" || exit 1
+    CMD python -c "import requests; requests.get('http://127.0.0.1:8081/')" || exit 1
 
-# Command to run both applications
-# Caddy will handle HTTPS and forward to uvicorn on localhost:8081
-CMD ["sh", "-c", "uvicorn app.main:app --host 127.0.0.1 --port 8081 & caddy run --config Caddyfile"]
+# Command to run ONLY your Uvicorn application.
+# Bind Uvicorn to 0.0.0.0 to make it accessible from other containers in the Docker network.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081"]
