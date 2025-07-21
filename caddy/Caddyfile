@@ -1,42 +1,19 @@
-# caddy/Caddyfile
-# This block defines the site Caddy will manage.
-# It covers both the base domain and all its subdomains (wildcard).
+# Fixed syntax - note the curly braces and env. prefix
 *.gradeinsight.com, gradeinsight.com {
-    # Configure Automatic HTTPS with Let's Encrypt.
-    # Caddy will use the DNS-01 challenge via Cloudflare to prove domain ownership.
     tls {
-        # Specify the Cloudflare DNS provider.
         dns cloudflare {
-            # Caddy will read the Cloudflare API token from the environment variable.
-            # This environment variable will be set in your docker-compose.yml.
             api_token {env.CLOUDFLARE_API_TOKEN}
         }
-        # Optional: Provide an email address for ACME account registration and renewal notices.
-        # email your-email@example.com
     }
-
-    # Reverse proxy all incoming requests to your Uvicorn application.
-    # 'gradeinsight-app' is the name of your application service in docker-compose.yml.
-    # Docker's internal DNS allows Caddy to resolve 'gradeinsight-app' to its IP within the network.
-    # Uvicorn should be listening on port 8081 inside its container.
+    
     reverse_proxy gradeinsight-app:8081 {
-        # Pass essential headers to the backend application.
-        # These headers allow your Uvicorn app to know the original client's IP,
-        # the protocol (HTTP/HTTPS), and the original host requested.
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
         header_up Host {host}
     }
-
-    # Optional: Enable access logging for debugging and monitoring.
-    # Logs will go to the Caddy container's standard output, visible with `docker-compose logs caddy`.
+    
     log {
         output stdout
         format json
     }
-
-    # Optional: If you have static files to serve directly from Caddy (e.g., a landing page),
-    # you can add a 'file_server' directive here.
-    # root * /path/to/your/static/files
-    # file_server
 }
