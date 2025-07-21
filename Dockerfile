@@ -37,8 +37,8 @@ RUN useradd --create-home --shell /bin/bash app \
 # Switch to non-root user
 USER app
 
-# Expose ports (80 for HTTP, 443 for HTTPS, 8000 for development)
-EXPOSE 80 443 8000 8081
+# Expose ports (80 for HTTP, 443 for HTTPS, 8081 for development)
+EXPOSE 80 443 8081
 
 # Health check (adjust URL path as needed)
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
