@@ -1,12 +1,37 @@
+# docker-compose.yml
 version: '3.8'
 
 services:
-  gradeinsight-app:
-    build: .
-    container_name: gradeinsight-app
+  caddy:
+    # Build the Caddy image from the Dockerfile located in the 'caddy' directory.
+    build:
+      context: ./caddy # Points to the caddy directory
+      dockerfile: Dockerfile # Refers to caddy/Dockerfile
+    image: gradeinsight-caddy-with-cloudflare:latest # Name for your custom Caddy image
+    container_name: caddy # Assign a specific name for easy reference
+    restart: unless-stopped
     ports:
-      - "8081:8081"
-      - "443:443"
+      - "80:80"   # Map host port 80 to container port 80 (HTTP traffic, Caddy redirects to HTTPS)
+      - "443:443" # Map host port 443 to container port 443 (HTTPS traffic)
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile # Mount your Caddyfile into the container
+      - caddy_data:/data                       # Persistent storage for Caddy's certificates and state
+      - caddy_config:/config                   # Persistent storage for Caddy's dynamic configuration (optional, but good)
+    environment:
+      # **IMPORTANT**: Replace "YOUR_CLOUDFLARE_API_TOKEN_HERE" with your actual token.
+      # For better security, consider loading this from a .env file (see note below).
+      - CLOUDFLARE_API_TOKEN="YOUR_CLOUDFLARE_API_TOKEN_HERE"
+    networks:
+      - gradeinsight-network # Connect Caddy to the same network as your application
+
+  gradeinsight-app:
+    # Build the application image from your main Dockerfile (assuming it's in the project root)
+    build: . # Points to the Dockerfile in the current directory (project root)
+    container_name: gradeinsight-app
+    # REMOVE 'ports: - "443:443"' from here. Caddy handles 443.
+    # Only expose 8081 internally for Caddy to access.
+    expose:
+      - "8081" # Expose port 8081 only to other services on the 'gradeinsight-network'
     environment:
       PORT: ${PORT}
       DATABASE_URL: ${DATABASE_URL}
@@ -29,13 +54,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5432:5432" # Keep this if you need to access Postgres directly from host, otherwise remove.
     networks:
       - gradeinsight-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  caddy_data:   # Define the named volume for Caddy's persistent data
+  caddy_config: # Define the named volume for Caddy's config
 
 networks:
   gradeinsight-network:
