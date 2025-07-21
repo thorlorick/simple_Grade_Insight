@@ -41,7 +41,7 @@ EXPOSE 80 443 8000 8081
 
 # Health check (adjust URL path as needed)
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/')" || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:8081/')" || exit 1
 
 # Command to run both applications
 # Caddy will handle HTTPS and forward to uvicorn on localhost:8081
