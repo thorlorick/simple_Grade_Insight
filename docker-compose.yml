@@ -18,9 +18,9 @@ services:
       - caddy_data:/data                       # Persistent storage for Caddy's certificates and state
       - caddy_config:/config                   # Persistent storage for Caddy's dynamic configuration (optional, but good)
     environment:
-      # **IMPORTANT**: Replace "YOUR_CLOUDFLARE_API_TOKEN_HERE" with your actual token.
-      # For better security, consider loading this from a .env file (see note below).
-      - CLOUDFLARE_API_TOKEN="YOUR_CLOUDFLARE_API_TOKEN_HERE"
+      # Load CLOUDFLARE_API_TOKEN from the .env file.
+      # Docker Compose automatically loads variables from a .env file in the same directory.
+      - CLOUDFLARE_API_TOKEN # <--- CORRECT WAY TO LOAD FROM .env
     networks:
       - gradeinsight-network # Connect Caddy to the same network as your application
 
@@ -62,7 +62,7 @@ services:
 volumes:
   postgres_data:
   caddy_data:   # Define the named volume for Caddy's persistent data
-  caddy_config: # Define the named volume for Caddy's config
+  caddy_config: # Define the named named volume for Caddy's config
 
 networks:
   gradeinsight-network:
