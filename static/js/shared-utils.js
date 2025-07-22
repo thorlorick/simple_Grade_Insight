@@ -118,8 +118,6 @@ class GradeUtils {
                 loadingSpinner.style.display = loading ? 'inline-flex' : 'none';
                 
                 fileInput.disabled = loading;
-                tagSelect.disabled = loading;
-                newTagsInput.disabled = loading;
             }
 
             function showProgress() {
