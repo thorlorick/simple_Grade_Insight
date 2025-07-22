@@ -1,38 +1,58 @@
-import io
-import pandas as pd
-from datetime import datetime
-from typing import List, Optional
-
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Request, HTTPException, Depends, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, Response
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
+import pandas as pd
+import io
+import os
+from datetime import datetime
 
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.exc import IntegrityError
+from app.database import get_db, get_tenant_from_host, engine
+from app.models import Grade, Student, Teacher, Assignment, Tenant, Base
 
-from app/database import SessionLocal, engine
-import app/models
+app = FastAPI(title="Grade Insight")
 
-# Initialize FastAPI app
-app = FastAPI()
+# Create tables on startup
+def create_tables():
+    Base.metadata.create_all(bind=engine)
+
+# Create admin tenant if no tenants exist
+def ensure_admin_tenant():
+    """Create admin tenant if no tenants exist in database"""
+    db = next(get_db())
+    try:
+        # Check if ANY tenant exists
+        tenant_count = db.query(Tenant).count()
+        
+        if tenant_count == 0:
+            # No tenants exist, create admin tenant
+            admin_tenant = Tenant(
+                id="admin",
+                name="Admin Tenant - Default"
+            )
+            db.add(admin_tenant)
+            db.commit()
+            print("✅ Created admin tenant (first tenant in database)")
+        else:
+            print(f"👍 Database already has {tenant_count} tenant(s)")
+    
+    except Exception as e:
+        print(f"❌ Error checking/creating admin tenant: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+# Initialize on startup
+create_tables()
+ensure_admin_tenant()
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Configure Jinja2 templates
 templates = Jinja2Templates(directory="templates")
-
-# Dependency to get the database session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# Create database tables (if they don't exist)
-models.Base.metadata.create_all(bind=engine)
 
 # Constants
 DEFAULT_MAX_POINTS = 100.0
