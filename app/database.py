@@ -67,7 +67,7 @@ def get_tenant_from_host(host: str) -> str:
     
     # Reserved subdomains that should not be allowed as tenants
     reserved_subdomains = {
-        "www", "api", "admin", "app", "mail", "email", "ftp", "ssh", 
+        "www", "api", "app", "mail", "email", "ftp", "ssh", 
         "test", "staging", "dev", "demo", "support", "help", "blog",
         "docs", "status", "monitor", "cdn", "static", "assets"
     }
