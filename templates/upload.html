@@ -6,8 +6,28 @@
     <title>Upload CSV - Grade Insight</title>
     <link rel="stylesheet" href="/static/css/compact.css">
     <script src="/static/js/shared-utils.js"></script>
- 
-
+    <style>
+        /* Add some basic styles for feedback */
+        .message.success { color: green; }
+        .message.error { color: red; }
+        .progress-step.active { font-weight: bold; color: #1e293b; }
+        .progress-step.completed { color: #059669; }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6; /* A blue color */
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -20,9 +40,9 @@
             <a href="/dashboard" class="back-link">← Back to Dashboard</a>
         </div>
 
-        <div id="messageContainer"></div>
+        <div id="messageContainer" class="message"></div>
 
-        <form id="uploadForm">
+        <form id="uploadForm" enctype="multipart/form-data">
             <div class="form-group" style="margin-bottom: 24px;">
                 <label for="fileInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Select CSV File</label>
                 <input id="fileInput" name="file" type="file" accept=".csv" required class="search-input">
@@ -30,22 +50,35 @@
             </div>
 
             <div class="form-group" style="margin-bottom: 24px;">
-                <label for="tagSelect" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Existing Tags</label>
+                <label for="teacherNameInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Your Name (Teacher)</label>
+                <input type="text" id="teacherNameInput" name="teacher_name" placeholder="e.g., John Doe" required class="search-input">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label for="classTagInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Class/Section Tag</label>
+                <input type="text" id="classTagInput" name="class_tag" placeholder="e.g., Math-101, Fall2024" required class="search-input">
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">
+                    This will group all grades from this upload.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 24px;">
+                <label for="tagSelect" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Existing Tags (Optional)</label>
                 <select id="tagSelect" name="tags" multiple class="search-input" style="min-height:120px;">
                     {% for tag in tags %}
                         <option value="{{ tag.id }}">{{ tag.name }}</option>
                     {% endfor %}
                 </select>
                 <div style="font-size:12px; color:#64748b; margin-top:4px;">
-                    Hold Ctrl (Windows) or Cmd (Mac) to select multiple tags
+                    Hold Ctrl (Windows) or Cmd (Mac) to select multiple tags. These will be linked to assignments from this upload.
                 </div>
             </div>
 
             <div class="form-group" style="margin-bottom: 24px;">
-                <label for="newTags" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Add New Tags</label>
+                <label for="newTags" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Add New Tags (Optional)</label>
                 <input type="text" id="newTags" name="new_tags" placeholder="e.g. Midterm, Project, Extra Credit" class="search-input">
                 <div style="font-size:12px; color:#64748b; margin-top:4px;">
-                    Separate multiple tags with commas
+                    Separate multiple tags with commas. These new tags will be created and linked to assignments from this upload.
                 </div>
             </div>
 
@@ -79,6 +112,112 @@
         </div>
     </div>
 
-    
+    <script>
+        // Client-side script for file upload handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadForm = document.getElementById('uploadForm');
+            const fileInput = document.getElementById('fileInput');
+            const fileInfo = document.getElementById('fileInfo');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const messageContainer = document.getElementById('messageContainer');
+            const progressSection = document.getElementById('progressSection');
+            const progressSteps = document.querySelectorAll('.progress-step');
+
+            // Show selected file name
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) {
+                    fileInfo.textContent = `Selected file: ${this.files[0].name} (${(this.files[0].size / 1024).toFixed(2)} KB)`;
+                    fileInfo.style.display = 'block';
+                } else {
+                    fileInfo.style.display = 'none';
+                }
+            });
+
+            uploadForm.addEventListener('submit', async function(event) {
+                event.preventDefault(); // Prevent default form submission
+
+                // Reset UI
+                messageContainer.innerHTML = '';
+                messageContainer.className = 'message';
+                progressSection.style.display = 'none';
+                progressSteps.forEach(step => {
+                    step.classList.remove('active', 'completed');
+                    step.style.color = '#64748b'; // Reset color
+                });
+
+                // Show loading state
+                submitBtn.disabled = true;
+                submitText.style.display = 'none';
+                loadingSpinner.style.display = 'inline-flex';
+                progressSection.style.display = 'block';
+                document.getElementById('step1').classList.add('active');
+
+                const formData = new FormData(uploadForm);
+
+                // For multiple select, FormData automatically handles selected values.
+                // For new_tags, ensure it's handled if provided.
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData // FormData automatically sets Content-Type to multipart/form-data
+                    });
+
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step1').classList.add('completed');
+                    document.getElementById('step2').classList.add('active');
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        document.getElementById('step2').classList.remove('active');
+                        document.getElementById('step2').classList.add('completed');
+                        document.getElementById('step3').classList.add('active');
+
+                        messageContainer.textContent = data.message || 'CSV uploaded and processed successfully!';
+                        messageContainer.classList.add('success');
+                        
+                        // Simulate further progress steps
+                        setTimeout(() => {
+                            document.getElementById('step3').classList.remove('active');
+                            document.getElementById('step3').classList.add('completed');
+                            document.getElementById('step4').classList.add('active', 'completed');
+                        }, 500); // Small delay for visual effect
+
+                        // Optionally redirect or refresh after a successful upload
+                        setTimeout(() => {
+                            window.location.href = '/dashboard'; // Redirect to dashboard or relevant page
+                        }, 2000);
+
+                    } else {
+                        const errorData = await response.json();
+                        messageContainer.textContent = errorData.detail || 'An error occurred during upload.';
+                        messageContainer.classList.add('error');
+                        // Highlight the step where the error likely occurred, or keep step 1 active if early failure
+                        if (response.status === 422) { // Validation error from FastAPI
+                            document.getElementById('step1').classList.remove('active');
+                            document.getElementById('step1').style.color = 'red'; // Indicate error at validation step
+                        } else {
+                            document.getElementById('step3').classList.remove('active');
+                            document.getElementById('step3').style.color = 'red';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Network error or unexpected issue:', error);
+                    messageContainer.textContent = 'Network error or unable to connect to the server.';
+                    messageContainer.classList.add('error');
+                    // Ensure error state is reflected in progress
+                    document.getElementById('step1').classList.remove('active');
+                    document.getElementById('step1').style.color = 'red'; 
+                    progressSection.style.display = 'block'; // Ensure progress is visible even on network error
+                } finally {
+                    submitBtn.disabled = false;
+                    submitText.style.display = 'inline';
+                    loadingSpinner.style.display = 'none';
+                }
+            });
+        });
+    </script>
 </body>
 </html>
