@@ -11,8 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 
-from database import SessionLocal, engine
-import models
+from app/database import SessionLocal, engine
+import app/models
 
 # Initialize FastAPI app
 app = FastAPI()
