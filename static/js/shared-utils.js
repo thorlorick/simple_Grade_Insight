@@ -2662,3 +2662,149 @@ const GradeUtils = {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = GradeUtils;
 }
+
+   <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('uploadForm');
+            const fileInput = document.getElementById('fileInput');
+            const fileInfo = document.getElementById('fileInfo');
+            const tagSelect = document.getElementById('tagSelect');
+            const newTagsInput = document.getElementById('newTags');
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const messageContainer = document.getElementById('messageContainer');
+            const progressSection = document.getElementById('progressSection');
+
+            // Utility functions
+            function showMessage(message, type = 'info') {
+                const messageClass = type === 'error' ? 'error' : type === 'success' ? 'success' : 'loading';
+                messageContainer.innerHTML = `<div class="${messageClass}">${GradeUtils.escapeHtml(message)}</div>`;
+                messageContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            function clearMessage() {
+                messageContainer.innerHTML = '';
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            function setLoadingState(loading) {
+                submitBtn.disabled = loading;
+                submitText.style.display = loading ? 'none' : 'inline';
+                loadingSpinner.style.display = loading ? 'inline-flex' : 'none';
+                
+                fileInput.disabled = loading;
+                tagSelect.disabled = loading;
+                newTagsInput.disabled = loading;
+            }
+
+            function showProgress() {
+                progressSection.style.display = 'block';
+                progressSection.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            function hideProgress() {
+                progressSection.style.display = 'none';
+            }
+
+            function updateProgressStep(stepNumber, status) {
+                const step = document.getElementById(`step${stepNumber}`);
+                if (step) {
+                    if (status === 'active') {
+                        step.style.color = '#4f46e5';
+                        step.style.fontWeight = '600';
+                    } else if (status === 'complete') {
+                        step.style.color = '#059669';
+                        step.style.fontWeight = '600';
+                    }
+                }
+            }
+
+            // File input handling
+            fileInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    if (!file.name.toLowerCase().endsWith('.csv')) {
+                        showMessage('Please select a CSV file.', 'error');
+                        fileInput.value = '';
+                        fileInfo.style.display = 'none';
+                        return;
+                    }
+                    
+                    fileInfo.textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+                    fileInfo.style.display = 'block';
+                    clearMessage();
+                } else {
+                    fileInfo.style.display = 'none';
+                }
+            });
+
+            // Form submission
+            form.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                
+                if (!fileInput.files[0]) {
+                    showMessage('Please select a CSV file.', 'error');
+                    return;
+                }
+
+                setLoadingState(true);
+                showProgress();
+                clearMessage();
+
+                try {
+                    updateProgressStep(1, 'active');
+                    
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    
+                    // Handle existing tags
+                    const selectedTags = Array.from(tagSelect.selectedOptions).map(opt => opt.value);
+                    if (selectedTags.length > 0) {
+                        formData.append('tags', JSON.stringify(selectedTags));
+                    }
+                    
+                    updateProgressStep(2, 'active');
+                    
+                    // Handle new tags
+                    const newTagsValue = newTagsInput.value.trim();
+                    if (newTagsValue) {
+                        formData.append('new_tags', newTagsValue);
+                    }
+
+                    updateProgressStep(3, 'active');
+
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    updateProgressStep(4, 'complete');
+                    showMessage('File uploaded successfully! Redirecting to dashboard...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    showMessage(`Upload failed: ${error.message}`, 'error');
+                    setLoadingState(false);
+                    hideProgress();
+                }
+            });
+        });
+   
