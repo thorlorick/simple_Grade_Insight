@@ -879,11 +879,4 @@ class StudentGradePortal {
             }));
         }
         
-        // Enhanced student search
-        function performStudentSearch(searchTerm) {
-            const lowerSearchTerm = searchTerm.toLowerCase();
-            const tableBody = document.getElementById('tableBody');
-            const rows = Array.from(tableBody.querySelectorAll('tr'));
-            // ... (rest of the existing logic for GradesTable search)
-        }
     });
