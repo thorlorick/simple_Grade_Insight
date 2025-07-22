@@ -21,54 +21,34 @@
 
         <div id="messageContainer" class="message"></div>
 
-        <form id="uploadForm" enctype="multipart/form-data">
-            <div class="form-group" style="margin-bottom: 24px;">
-                <label for="fileInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Select CSV File</label>
-                <input id="fileInput" name="file" type="file" accept=".csv" required class="search-input">
-                <div id="fileInfo" style="display:none; margin-top:8px; color:#059669; font-size:14px;"></div>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 24px;">
-                <label for="teacherNameInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Your Name (Teacher)</label>
-                <input type="text" id="teacherNameInput" name="teacher_name" placeholder="e.g., John Doe" required class="search-input">
-            </div>
-
-            <div class="form-group" style="margin-bottom: 24px;">
-                <label for="classTagInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Class/Section Tag</label>
-                <input type="text" id="classTagInput" name="class_tag" placeholder="e.g., Math-101, Fall2024" required class="search-input">
-                <div style="font-size:12px; color:#64748b; margin-top:4px;">
-                    This will group all grades from this upload.
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 24px;">
-                <label for="tagSelect" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Existing Tags (Optional)</label>
-                <select id="tagSelect" name="tags" multiple class="search-input" style="min-height:120px;">
-                    {% for tag in tags %}
-                        <option value="{{ tag.id }}">{{ tag.name }}</option>
-                    {% endfor %}
-                </select>
-                <div style="font-size:12px; color:#64748b; margin-top:4px;">
-                    Hold Ctrl (Windows) or Cmd (Mac) to select multiple tags. These will be linked to assignments from this upload.
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 24px;">
-                <label for="newTags" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Add New Tags (Optional)</label>
-                <input type="text" id="newTags" name="new_tags" placeholder="e.g. Midterm, Project, Extra Credit" class="search-input">
-                <div style="font-size:12px; color:#64748b; margin-top:4px;">
-                    Separate multiple tags with commas. These new tags will be created and linked to assignments from this upload.
-                </div>
-            </div>
-
-            <button type="submit" id="submitBtn" class="search-btn" style="width: 100%; margin-top: 16px;">
-                <span id="submitText">Upload CSV</span>
-                <span id="loadingSpinner" style="display:none;">
-                    <span class="loading-spinner"></span>
-                    Processing...
-                </span>
-            </button>
-        </form>
+       <form id="uploadForm" enctype="multipart/form-data">
+    <div class="form-group" style="margin-bottom: 24px;">
+        <label for="fileInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Select CSV File</label>
+        <input id="fileInput" name="file" type="file" accept=".csv" required class="search-input">
+        <div id="fileInfo" style="display:none; margin-top:8px; color:#059669; font-size:14px;"></div>
+    </div>
+    
+    <div class="form-group" style="margin-bottom: 24px;">
+        <label for="teacherNameInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Your Name (Teacher)</label>
+        <input type="text" id="teacherNameInput" name="teacher_name" placeholder="e.g., John Doe" required class="search-input">
+    </div>
+    
+    <div class="form-group" style="margin-bottom: 24px;">
+        <label for="classTagInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Class/Section Tag</label>
+        <input type="text" id="classTagInput" name="class_tag" placeholder="e.g., Math-101, Fall2024" required class="search-input">
+        <div style="font-size:12px; color:#64748b; margin-top:4px;">
+            This will group all grades from this upload.
+        </div>
+    </div>
+    
+    <button type="submit" id="submitBtn" class="search-btn" style="width: 100%; margin-top: 16px;">
+        <span id="submitText">Upload CSV</span>
+        <span id="loadingSpinner" style="display:none;">
+            <span class="loading-spinner"></span>
+            Processing...
+        </span>
+    </button>
+</form>
 
         <div id="progressSection" style="display:none; margin-top:32px;">
             <div style="background-color:#f8fafc; padding:24px; border-radius:12px; border:1px solid #e2e8f0;">
