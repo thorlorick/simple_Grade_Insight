@@ -208,7 +208,8 @@ class GradeUtils {
                     setLoadingState(false);
                     hideProgress();
                 }
-            });
+            }
+                                 );
         
 
 // grades-table.js - Enhanced grades table with tag search
