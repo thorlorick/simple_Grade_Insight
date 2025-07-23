@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Set work directory
-WORKDIR /app
+WORKDIR /
 
 # Install system dependencies required for psycopg2 and compilation
 # REMOVE Caddy-specific installation commands from here.
