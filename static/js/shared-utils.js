@@ -209,7 +209,7 @@ class GradeUtils {
                     hideProgress();
                 }
             });
-        });
+        
 
 // grades-table.js - Enhanced grades table with tag search
 class GradesTable {
