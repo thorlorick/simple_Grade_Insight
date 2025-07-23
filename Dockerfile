@@ -1,4 +1,4 @@
-# Use Python 3.11 slim image as base
+o# Use Python 3.11 slim image as base
 FROM python:3.11-slim
 
 # Set environment variables
@@ -45,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # Command to run ONLY your Uvicorn application.
 # Bind Uvicorn to 0.0.0.0 to make it accessible from other containers in the Docker network.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8081"]
