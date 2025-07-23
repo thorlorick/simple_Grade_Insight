@@ -1,3 +1,9 @@
+import pandas as pd
+import io
+import os
+import re
+import logging
+import email_validator
 from fastapi import FastAPI, Request, HTTPException, Depends, File, UploadFile, Form, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -5,16 +11,10 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-import pandas as pd
-import io
-import os
-import re
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, EmailStr, validator, Field
-import logging
 from contextlib import contextmanager
-import email_validator
 
 from app.database import get_db, get_tenant_from_host, engine
 from app.models import Grade, Student, Teacher, Assignment, Tenant, Base
