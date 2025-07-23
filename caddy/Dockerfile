@@ -7,4 +7,4 @@ RUN xcaddy build \
 # Final image
 FROM caddy:latest
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
-EXPOSE 80 443
+EXPOSE 80 443 8081
