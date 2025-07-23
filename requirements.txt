@@ -12,6 +12,7 @@ aiofiles==23.2.1
 # Data processing
 pandas==2.1.4
 python-multipart==0.0.6
+email-validator
 
 # Configuration
 python-dotenv==1.0.0
