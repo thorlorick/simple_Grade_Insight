@@ -16,7 +16,7 @@ import logging
 from contextlib import contextmanager
 import email_validator
 
-from app.app.database import get_db, get_tenant_from_host, engine
+from database import get_db, get_tenant_from_host, engine
 from app.models import Grade, Student, Teacher, Assignment, Tenant, Base
 
 # Configure logging
