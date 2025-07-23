@@ -143,6 +143,9 @@ class GradeUtils {
             }
 
             // File input handling
+                const fileInput = document.getElementById('fileInput'); // Add this line
+                const fileInfo = document.getElementById('fileInfo'); // You'll likely need this too
+
             fileInput.addEventListener('change', function(event) {
                 const file = event.target.files[0];
                 if (file) {
