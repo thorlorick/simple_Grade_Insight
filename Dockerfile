@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Set work directory
-WORKDIR /app
+WORKDIR /
 
 # Install system dependencies required for psycopg2 and compilation
 # REMOVE Caddy-specific installation commands from here.
@@ -25,7 +25,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project files
-COPY app/ .
+COPY . .
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
@@ -45,4 +45,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # Command to run ONLY your Uvicorn application.
 # Bind Uvicorn to 0.0.0.0 to make it accessible from other containers in the Docker network.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8081"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081"]
