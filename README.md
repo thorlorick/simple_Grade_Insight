@@ -9,8 +9,8 @@ The multi-tenant architecture allows multiple schools to use the same applicatio
 
 ## ✨ Features
 
-- 🧑🏫 Flexible CSV Upload — Use Grade Insight’s template, or any `.csv` that follows our simplified format
-- 🔍 Automatic Data Cleaning — Smart parsing and normalization of grade data
+- 🧑🏫 Flexible CSV Upload — Use Grade Insight’s template, or any `.csv` that follows our simplified format -- 
+- 🔍 Automatic Data Cleaning — Smart parsing and normalization of grade data -- Allows for unedited Google Classroom CSV uploads.
 - 📈 Student/Parent Dashboard — Clean, simple progress visualization
 - 🔄 Smart Updates — Intelligent duplicate detection and data merging
 - 🐳 Docker Ready — Containerized FastAPI application for easy deployment
