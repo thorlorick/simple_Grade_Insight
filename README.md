@@ -1,5 +1,5 @@
 # simple_Grade_Insight
-# Grade Insight — Simple Grade Sharing for Schools
+# Grade Insight — Simple Grade Sharing for Schools and Teachers
 
 **Grade Insight** is a straightforward web application that helps teachers share student grades with parents in real-time. Teachers upload CSV files with grades and assignments, and parents can immediately view their student's progress through a simple web interface.
 
