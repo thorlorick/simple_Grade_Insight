@@ -5,41 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grade Insight - Teacher Dashboard</title>
     <link rel="stylesheet" href="/static/css/compact.css">
-    <script src="/static/js/shared-utils.js"></script> 
 </head>
 <body>
     <div class="header">
         <h1>Grade Insight</h1>
         <h2>When GOOD isn't enough.</h2>
     </div>
+    
     <div class="navigation">
-        <a href="/api/downloadTemplate" class="nav-button active">📊 Download CSV Template</a>
+        <a href="/api/downloadTemplate" class="nav-button">📊 Download CSV Template</a>
         <a href="/upload" class="nav-button">📤 Upload CSV</a>
-        <!-- <a href="/student-portal" class="nav-button">👥 Students</a> -->
+        <a href="#" class="nav-button active">📋 Dashboard</a>
     </div>
+
+    <!-- Dashboard Stats Section -->
     <div class="container">
+        <div class="stats-section" id="statsSection">
+            <div class="stat-card">
+                <h3>Students</h3>
+                <span id="totalStudents">-</span>
+            </div>
+            <div class="stat-card">
+                <h3>Assignments</h3>
+                <span id="totalAssignments">-</span>
+            </div>
+            <div class="stat-card">
+                <h3>Grades</h3>
+                <span id="totalGrades">-</span>
+            </div>
+        </div>
+
         <div class="controls">
             <div class="search-section">
                 <!-- Student Search -->
                 <div class="search-row">
                     <label class="search-label">Search Students:</label>
-                    <input 
-                        type="text" 
-                        id="studentSearch" 
-                        class="search-input" 
+                    <input
+                        type="text"
+                        id="studentSearch"
+                        class="search-input"
                         placeholder="Search by student name or email..."
                         autocomplete="off"
                     >
-                    <button id="clearStudentSearch" class="clear-search" style="display: none;">Clear</button>
+                    <button id="clearSearch" class="clear-search" style="display: none;">Clear</button>
                 </div>
                 
                 <!-- Tag Search -->
                 <div class="search-row">
                     <label class="search-label">Filter Assignments:</label>
-                    <input 
-                        type="text" 
-                        id="tagSearch" 
-                        class="search-input" 
+                    <input
+                        type="text"
+                        id="tagSearch"
+                        class="search-input"
                         placeholder="Search by assignment name or tag..."
                         autocomplete="off"
                     >
@@ -68,3 +85,280 @@
             </div>
         </div>
     </div>
+
+    <!-- Load JavaScript -->
+    <script src="/static/js/shared-utils.js"></script>
+    <script>
+        // Dashboard-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Dashboard loading...');
+            
+            // Load dashboard stats
+            loadDashboardStats();
+            
+            // Initialize the grades table (this should trigger the GradesTable class)
+            if (typeof GradesTable !== 'undefined') {
+                console.log('Initializing GradesTable...');
+                const gradesTable = new GradesTable();
+            } else {
+                console.error('GradesTable class not found in shared-utils.js');
+                // Fallback: load data manually
+                loadGradesManually();
+            }
+        });
+
+        // Load dashboard statistics
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalStudents').textContent = stats.total_students || 0;
+                    document.getElementById('totalAssignments').textContent = stats.total_assignments || 0;
+                    document.getElementById('totalGrades').textContent = stats.total_grades || 0;
+                } else {
+                    console.error('Failed to load dashboard stats');
+                }
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+            }
+        }
+
+        // Fallback function to load grades manually if GradesTable class fails
+        async function loadGradesManually() {
+            try {
+                console.log('Loading grades manually...');
+                const response = await fetch('/api/grades-table');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Loaded data:', data);
+                
+                if (data.students && data.students.length > 0) {
+                    renderBasicTable(data.students);
+                } else {
+                    showNoDataMessage();
+                }
+            } catch (error) {
+                console.error('Error loading grades:', error);
+                showErrorMessage('Failed to load grades. Please check your connection and try again.');
+            }
+        }
+
+        // Basic table rendering function
+        function renderBasicTable(students) {
+            const tableBody = document.getElementById('tableBody');
+            const tableHeader = document.getElementById('tableHeader');
+            
+            // Clear loading message
+            tableBody.innerHTML = '';
+            
+            if (students.length === 0) {
+                showNoDataMessage();
+                return;
+            }
+
+            // Extract all unique assignments
+            const assignmentMap = new Map();
+            students.forEach(student => {
+                student.grades.forEach(grade => {
+                    const key = grade.assignment;
+                    if (!assignmentMap.has(key)) {
+                        assignmentMap.set(key, {
+                            name: grade.assignment,
+                            max_points: grade.max_points
+                        });
+                    }
+                });
+            });
+
+            const assignments = Array.from(assignmentMap.values());
+            
+            // Build header
+            tableHeader.innerHTML = '<th class="student-info">Student</th>';
+            assignments.forEach(assignment => {
+                const th = document.createElement('th');
+                th.className = 'assignment-header';
+                th.innerHTML = `
+                    <div class="assignment-name">${escapeHtml(assignment.name)}</div>
+                    <div class="assignment-info">${assignment.max_points} pts</div>
+                `;
+                tableHeader.appendChild(th);
+            });
+
+            // Build rows
+            students.forEach(student => {
+                const row = document.createElement('tr');
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', () => {
+                    if (student.email) {
+                        window.location.href = `/api/student/${encodeURIComponent(student.email)}`;
+                    }
+                });
+
+                // Student info cell
+                const studentCell = document.createElement('td');
+                studentCell.className = 'student-info';
+                studentCell.innerHTML = `
+                    <div class="student-name">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</div>
+                    <div class="student-email">${escapeHtml(student.email)}</div>
+                `;
+                row.appendChild(studentCell);
+
+                // Grade cells
+                assignments.forEach(assignment => {
+                    const gradeCell = document.createElement('td');
+                    gradeCell.className = 'grade-cell';
+                    
+                    const grade = student.grades.find(g => g.assignment === assignment.name);
+                    if (grade) {
+                        const percentage = Math.round((grade.score / grade.max_points) * 100);
+                        const gradeClass = percentage >= 80 ? 'grade-good' : percentage >= 60 ? 'grade-medium' : 'grade-poor';
+                        gradeCell.innerHTML = `
+                            <div class="grade-score ${gradeClass}">${grade.score}/${grade.max_points}</div>
+                            <div class="grade-percentage">${percentage}%</div>
+                        `;
+                    } else {
+                        gradeCell.innerHTML = '<div class="no-grade">—</div>';
+                    }
+                    
+                    row.appendChild(gradeCell);
+                });
+
+                tableBody.appendChild(row);
+            });
+
+            // Update stats
+            const searchStats = document.getElementById('searchStats');
+            if (searchStats) {
+                searchStats.textContent = `${students.length} students, ${assignments.length} assignments`;
+            }
+        }
+
+        function showNoDataMessage() {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="100%" class="no-data">
+                        <div style="text-align: center; padding: 40px;">
+                            <h3>No Data Available</h3>
+                            <p>No students or grades have been uploaded yet.</p>
+                            <p><a href="/upload" class="nav-button">📤 Upload CSV File</a></p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function showErrorMessage(message) {
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="100%" class="error">
+                        <div style="text-align: center; padding: 40px;">
+                            <h3>Error Loading Data</h3>
+                            <p>${escapeHtml(message)}</p>
+                            <button onclick="location.reload()" class="nav-button">🔄 Retry</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+<style>
+        .stats-section {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            min-width: 120px;
+        }
+
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .stat-card span {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4f46e5;
+        }
+
+        .no-data, .error {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .grade-good { color: #059669; }
+        .grade-medium { color: #d97706; }
+        .grade-poor { color: #dc2626; }
+        
+        .assignment-header {
+            text-align: center;
+            min-width: 100px;
+        }
+        
+        .assignment-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .assignment-info {
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .grade-cell {
+            text-align: center;
+        }
+        
+        .grade-score {
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .grade-percentage {
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .no-grade {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .student-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .student-email {
+            font-size: 12px;
+            color: #64748b;
+        }
+    </style>
+</body>
+</html>
