@@ -335,12 +335,8 @@ async def upload_csv(
     file: UploadFile = File(...),
     teacher_name: str = Form(...),
     class_tag: str = Form(...),
-    tags: str = Form(None),  # Optional existing tags as JSON string
-    new_tags: str = Form(None),  # Optional new tags as comma-separated string
     db: Session = Depends(get_db)
 ):
-    import traceback
-    
     try:
         tenant_id = get_tenant_from_host(request.headers.get("host"))
         
@@ -350,31 +346,10 @@ async def upload_csv(
             tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
             db.add(tenant)
             db.commit()
-            db.refresh(tenant)
 
-        # Validate file
-        if not file.filename.lower().endswith('.csv'):
-            raise HTTPException(status_code=400, detail="File must be a CSV file")
-
-        # Read and validate CSV content
-        try:
-            content = await file.read()
-            df = pd.read_csv(io.StringIO(content.decode('utf-8')))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Error reading CSV file: {str(e)}")
-
-        # Validate required columns
-        required_columns = ['Last Name', 'First Name', 'Email']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"CSV is missing required columns: {', '.join(missing_columns)}"
-            )
-
-        # Check if DataFrame is empty
-        if df.empty:
-            raise HTTPException(status_code=400, detail="CSV file is empty")
+        # Read CSV content
+        content = await file.read()
+        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
 
         # Get or create teacher
         teacher = db.query(Teacher).filter(
@@ -389,21 +364,14 @@ async def upload_csv(
             db.refresh(teacher)
 
         # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
-        assignment_columns = [col for col in df.columns if col not in required_columns]
-        
-        if not assignment_columns:
-            raise HTTPException(
-                status_code=400, 
-                detail="No assignment columns found in CSV. Make sure you have columns other than Last Name, First Name, and Email."
-            )
+        assignment_columns = [col for col in df.columns if col not in ("Last Name", "First Name", "Email")]
 
         # Default max points
         DEFAULT_MAX_POINTS = 100.0
 
-        # Cache assignments by name for this tenant to avoid repeated queries
+        # Cache assignments by name for this tenant
         assignments_cache = {}
 
-        # Create assignments
         for col in assignment_columns:
             assignment = db.query(Assignment).filter(
                 Assignment.name == col,
@@ -421,118 +389,68 @@ async def upload_csv(
             assignments_cache[col] = assignment
 
         # Process each row (student)
-        processed_students = 0
-        processed_grades = 0
-        errors = []
+        for _, row in df.iterrows():
+            first_name = row["First Name"]
+            last_name = row["Last Name"]
+            email = row["Email"]
 
-        for index, row in df.iterrows():
-            try:
-                first_name = str(row["First Name"]).strip()
-                last_name = str(row["Last Name"]).strip()
-                email = str(row["Email"]).strip().lower()
+            # Get or create student by email + tenant
+            student = db.query(Student).filter(
+                Student.email == email,
+                Student.tenant_id == tenant_id
+            ).first()
 
-                # Validate email format
-                if not email or '@' not in email:
-                    errors.append(f"Row {index + 2}: Invalid email address '{email}'")
-                    continue
+            if not student:
+                student = Student(
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                    tenant_id=tenant_id
+                )
+                db.add(student)
+                db.commit()
+                db.refresh(student)
 
-                # Get or create student by email + tenant
-                student = db.query(Student).filter(
-                    Student.email == email,
-                    Student.tenant_id == tenant_id
+            # Create grades for each assignment column
+            for assignment_name in assignment_columns:
+                score_value = row[assignment_name]
+                if pd.isna(score_value):
+                    continue  # skip if no grade
+
+                assignment = assignments_cache[assignment_name]
+
+                # Check if grade already exists
+                existing_grade = db.query(Grade).filter(
+                    Grade.student_id == student.id,
+                    Grade.assignment_id == assignment.id,
+                    Grade.tenant_id == tenant_id
                 ).first()
 
-                if not student:
-                    student = Student(
-                        first_name=first_name,
-                        last_name=last_name,
-                        email=email,
-                        tenant_id=tenant_id
-                    )
-                    db.add(student)
-                    db.commit()
-                    db.refresh(student)
-                    processed_students += 1
+                if existing_grade:
+                    # Update existing grade
+                    existing_grade.score = float(score_value)
+                    existing_grade.teacher_id = teacher.id
+                    existing_grade.class_tag = class_tag
                 else:
-                    # Update student info if needed
-                    if student.first_name != first_name or student.last_name != last_name:
-                        student.first_name = first_name
-                        student.last_name = last_name
+                    # New grade
+                    grade = Grade(
+                        student_id=student.id,
+                        teacher_id=teacher.id,
+                        assignment_id=assignment.id,
+                        tenant_id=tenant_id,
+                        score=float(score_value),
+                        class_tag=class_tag
+                    )
+                    db.add(grade)
 
-                # Create grades for each assignment column
-                for assignment_name in assignment_columns:
-                    score_value = row[assignment_name]
-                    
-                    # Skip if no grade or invalid grade
-                    if pd.isna(score_value) or str(score_value).strip() == '':
-                        continue
-                    
-                    try:
-                        score_float = float(score_value)
-                    except (ValueError, TypeError):
-                        errors.append(f"Row {index + 2}, Assignment '{assignment_name}': Invalid score '{score_value}'")
-                        continue
+        db.commit()
+        return {"message": "CSV uploaded successfully"}
 
-                    assignment = assignments_cache[assignment_name]
-
-                    # Check if grade already exists (unique constraint)
-                    existing_grade = db.query(Grade).filter(
-                        Grade.student_id == student.id,
-                        Grade.assignment_id == assignment.id,
-                        Grade.tenant_id == tenant_id
-                    ).first()
-
-                    if existing_grade:
-                        # Update existing grade
-                        existing_grade.score = score_float
-                        existing_grade.teacher_id = teacher.id
-                        existing_grade.class_tag = class_tag
-                    else:
-                        # New grade
-                        grade = Grade(
-                            student_id=student.id,
-                            teacher_id=teacher.id,
-                            assignment_id=assignment.id,
-                            tenant_id=tenant_id,
-                            score=score_float,
-                            class_tag=class_tag
-                        )
-                        db.add(grade)
-                        processed_grades += 1
-
-            except Exception as e:
-                errors.append(f"Row {index + 2}: {str(e)}")
-                continue
-
-        # Commit all changes
-        try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-        # Prepare response
-        response_data = {
-            "message": "CSV uploaded successfully",
-            "processed_students": processed_students,
-            "processed_grades": processed_grades,
-            "assignment_columns": len(assignment_columns),
-            "total_rows": len(df)
-        }
-
-        if errors:
-            response_data["warnings"] = errors[:10]  # Limit to first 10 errors
-            if len(errors) > 10:
-                response_data["additional_errors"] = len(errors) - 10
-
-        return response_data
-
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"Unexpected error in upload_csv: {str(e)}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        print(f"Error in upload: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+            
 
 @app.get("/api/grades-table")
 async def get_grades_table(request: Request, db: Session = Depends(get_db)):
