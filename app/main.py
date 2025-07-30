@@ -621,12 +621,14 @@ async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
         "total_grades": total_grades
     }
 
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Dashboard stats error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
+try:
+    # your code here that might raise an exception
+except HTTPException:
+    raise
+except Exception as e:
+    logger.error(f"Dashboard stats error: {e}")
+    raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
+
 
 @app.get("/health")
 async def health_check():
