@@ -288,47 +288,45 @@ app = FastAPI(
 
 # Create tables on startup
 def create_tables():
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Failed to create database tables: {e}")
-        raise
+    Base.metadata.create_all(bind=engine)
 
 create_tables()
 
-# Static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Routes
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, db: Session = Depends(get_db)):
-    """Main dashboard page"""
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        tenant = get_or_create_tenant(db, tenant_id)
-        
-        with handle_db_errors():
-            students = db.query(Student).filter(Student.tenant_id == tenant_id).all()
-        
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {"request": request, "students": students, "tenant": tenant_id}
-        )
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
     
-    except HTTPException as he:
-        raise he  # Let FastAPI handle known HTTPExceptions
-    
-    except Exception as e:
-        # logger.exception("Dashboard error")  # Uncomment if you have logger configured
-        print(f"Dashboard error: {str(e)}")  # Use print for now
-        raise HTTPException(status_code=500, detail="Dashboard temporarily unavailable")
+    # Get or create tenant
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
+        db.add(tenant)
+        db.commit()
+
+    students = db.query(Student).filter(Student.tenant_id == tenant_id).all()
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "students": students, "tenant": tenant_id}
+    )
+
 
 @app.get("/upload", response_class=HTMLResponse)
-async def upload_page(request: Request):
-    """Upload page for CSV files"""
-    return templates.TemplateResponse("upload.html", {"request": request})
+async def upload_page(request: Request, db: Session = Depends(get_db)):
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    # Get existing teachers for the dropdown (if you want to implement this)
+    teachers = db.query(Teacher).filter(Teacher.tenant_id == tenant_id).all()
+    
+    return templates.TemplateResponse("upload.html", {
+        "request": request, 
+        "teachers": teachers,
+        "tags": []  # You can implement tags later
+    })
 
 
 @app.post("/upload")
@@ -348,274 +346,281 @@ async def upload_csv(
         db.add(tenant)
         db.commit()
 
-    # Read CSV content
-    content = await file.read()
-    df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+    try:
+        # Read CSV content
+        content = await file.read()
+        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
 
-    # Get or create teacher
-    teacher = db.query(Teacher).filter(
-        Teacher.name == teacher_name,
-        Teacher.tenant_id == tenant_id
-    ).first()
-
-    if not teacher:
-        teacher = Teacher(name=teacher_name, tenant_id=tenant_id)
-        db.add(teacher)
-        db.commit()
-        db.refresh(teacher)
-
-    # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
-    assignment_columns = [col for col in df.columns if col not in ("Last Name", "First Name", "Email")]
-
-    # Default max points
-    DEFAULT_MAX_POINTS = 100.0
-
-    # Cache assignments by name for this tenant to avoid repeated queries
-    assignments_cache = {}
-
-    for col in assignment_columns:
-        assignment = db.query(Assignment).filter(
-            Assignment.name == col,
-            Assignment.tenant_id == tenant_id
-        ).first()
-        if not assignment:
-            assignment = Assignment(
-                name=col,
-                tenant_id=tenant_id,
-                max_points=DEFAULT_MAX_POINTS
+        # Validate required columns
+        required_columns = ["Last Name", "First Name", "Email"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Missing required columns: {', '.join(missing_columns)}"
             )
-            db.add(assignment)
-            db.commit()
-            db.refresh(assignment)
-        assignments_cache[col] = assignment
 
-    # Process each row (student)
-    for _, row in df.iterrows():
-        first_name = row["First Name"]
-        last_name = row["Last Name"]
-        email = row["Email"]
-
-        # Get or create student by email + tenant
-        student = db.query(Student).filter(
-            Student.email == email,
-            Student.tenant_id == tenant_id
+        # Get or create teacher
+        teacher = db.query(Teacher).filter(
+            Teacher.name == teacher_name,
+            Teacher.tenant_id == tenant_id
         ).first()
 
-        if not student:
-            student = Student(
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                tenant_id=tenant_id
-            )
-            db.add(student)
+        if not teacher:
+            teacher = Teacher(name=teacher_name, tenant_id=tenant_id)
+            db.add(teacher)
             db.commit()
-            db.refresh(student)
+            db.refresh(teacher)
 
-        # Create grades for each assignment column
-        for assignment_name in assignment_columns:
-            score_value = row[assignment_name]
-            if pd.isna(score_value):
-                continue  # skip if no grade
+        # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
+        assignment_columns = [col for col in df.columns if col not in required_columns]
 
-            assignment = assignments_cache[assignment_name]
+        # Default max points
+        DEFAULT_MAX_POINTS = 100.0
 
-            # Check if grade already exists (unique constraint)
-            existing_grade = db.query(Grade).filter(
-                Grade.student_id == student.id,
-                Grade.assignment_id == assignment.id,
-                Grade.tenant_id == tenant_id
+        # Cache assignments by name for this tenant to avoid repeated queries
+        assignments_cache = {}
+
+        for col in assignment_columns:
+            assignment = db.query(Assignment).filter(
+                Assignment.name == col,
+                Assignment.tenant_id == tenant_id
+            ).first()
+            if not assignment:
+                assignment = Assignment(
+                    name=col,
+                    tenant_id=tenant_id,
+                    max_points=DEFAULT_MAX_POINTS
+                )
+                db.add(assignment)
+                db.commit()
+                db.refresh(assignment)
+            assignments_cache[col] = assignment
+
+        # Process each row (student)
+        processed_students = 0
+        processed_grades = 0
+        
+        for _, row in df.iterrows():
+            first_name = str(row["First Name"]).strip()
+            last_name = str(row["Last Name"]).strip()
+            email = str(row["Email"]).strip().lower()
+
+            if not first_name or not last_name or not email:
+                continue  # Skip rows with missing data
+
+            # Get or create student by email + tenant
+            student = db.query(Student).filter(
+                Student.email == email,
+                Student.tenant_id == tenant_id
             ).first()
 
-            if existing_grade:
-                # Update existing grade
-                existing_grade.score = float(score_value)
-                existing_grade.teacher_id = teacher.id
-                existing_grade.class_tag = class_tag
-            else:
-                # New grade
-                grade = Grade(
-                    student_id=student.id,
-                    teacher_id=teacher.id,
-                    assignment_id=assignment.id,
-                    tenant_id=tenant_id,
-                    score=float(score_value),
-                    class_tag=class_tag
+            if not student:
+                student = Student(
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=email,
+                    tenant_id=tenant_id
                 )
-                db.add(grade)
+                db.add(student)
+                db.commit()
+                db.refresh(student)
+                processed_students += 1
 
-    db.commit()
-    return {"message": "CSV uploaded successfully"}
+            # Create grades for each assignment column
+            for assignment_name in assignment_columns:
+                score_value = row[assignment_name]
+                if pd.isna(score_value) or str(score_value).strip() == '':
+                    continue  # skip if no grade
+
+                try:
+                    score_float = float(score_value)
+                except (ValueError, TypeError):
+                    continue  # skip invalid scores
+
+                assignment = assignments_cache[assignment_name]
+
+                # Check if grade already exists (unique constraint)
+                existing_grade = db.query(Grade).filter(
+                    Grade.student_id == student.id,
+                    Grade.assignment_id == assignment.id,
+                    Grade.tenant_id == tenant_id
+                ).first()
+
+                if existing_grade:
+                    # Update existing grade
+                    existing_grade.score = score_float
+                    existing_grade.teacher_id = teacher.id
+                    existing_grade.class_tag = class_tag
+                else:
+                    # New grade
+                    grade = Grade(
+                        student_id=student.id,
+                        teacher_id=teacher.id,
+                        assignment_id=assignment.id,
+                        tenant_id=tenant_id,
+                        score=score_float,
+                        class_tag=class_tag
+                    )
+                    db.add(grade)
+                    processed_grades += 1
+
+        db.commit()
+        return {
+            "message": "CSV uploaded successfully",
+            "students_processed": processed_students,
+            "grades_processed": processed_grades
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Error processing CSV: {str(e)}")
 
 
 @app.get("/api/grades-table")
 async def get_grades_table(request: Request, db: Session = Depends(get_db)):
-    """Get all students and their grades for the tenant"""
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    # Get all students for this tenant with their grades
+    students = db.query(Student).filter(Student.tenant_id == tenant_id).all()
+    
+    students_data = []
+    for student in students:
+        grades = db.query(Grade).filter(
+            Grade.student_id == student.id,
+            Grade.tenant_id == tenant_id
+        ).all()
         
-        with handle_db_errors():
-            students = db.query(Student).filter(Student.tenant_id == tenant_id).all()
-            
-            students_data = []
-            for student in students:
-                grades = db.query(Grade).filter(
-                    and_(Grade.student_id == student.id, Grade.tenant_id == tenant_id)
-                ).all()
-                
-                grades_data = []
-                for grade in grades:
-                    grades_data.append({
-                        "assignment": grade.assignment.name,
-                        "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
-                        "score": grade.score,
-                        "max_points": grade.assignment.max_points,
-                        "tags": [grade.class_tag] if grade.class_tag else []
-                    })
-                
-                students_data.append({
-                    "id": student.id,
-                    "first_name": student.first_name,
-                    "last_name": student.last_name,
-                    "email": student.email,
-                    "grades": grades_data
-                })
+        grades_data = []
+        for grade in grades:
+            grades_data.append({
+                "assignment": grade.assignment.name,
+                "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
+                "score": grade.score,
+                "max_points": grade.assignment.max_points,
+                "tags": [grade.class_tag] if grade.class_tag else []
+            })
         
-        return {"students": students_data}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Grades table error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve grades")
+        students_data.append({
+            "id": student.id,
+            "first_name": student.first_name,
+            "last_name": student.last_name,
+            "email": student.email,
+            "grades": grades_data
+        })
+    
+    return {"students": students_data}
+
 
 @app.get("/api/student/{student_id}/grades")
 async def get_student_grades(student_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get grades for a specific student"""
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        
-        with handle_db_errors():
-            # Verify student belongs to tenant
-            student = db.query(Student).filter(
-                and_(Student.id == student_id, Student.tenant_id == tenant_id)
-            ).first()
-            
-            if not student:
-                raise HTTPException(status_code=404, detail="Student not found")
-            
-            grades = db.query(Grade).filter(
-                and_(Grade.student_id == student_id, Grade.tenant_id == tenant_id)
-            ).all()
-        
-        return [{"id": g.id, "score": g.score, "assignment": g.assignment.name, 
-                "max_points": g.assignment.max_points} for g in grades]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Student grades error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve student grades")
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+
+    grades = db.query(Grade).filter(
+        Grade.student_id == student_id,
+        Grade.tenant_id == tenant_id
+    ).all()
+
+    return grades
+
 
 @app.get("/api/student/{email}")
 async def get_student_by_email(email: str, request: Request, db: Session = Depends(get_db)):
-    """Get student details and grades by email"""
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        
-        if not validate_email(email):
-            raise ValidationError("Invalid email format")
-        
-        with handle_db_errors():
-            student = db.query(Student).filter(
-                and_(Student.email == email, Student.tenant_id == tenant_id)
-            ).first()
-            
-            if not student:
-                raise HTTPException(status_code=404, detail="Student not found")
-            
-            grades = db.query(Grade).filter(
-                and_(Grade.student_id == student.id, Grade.tenant_id == tenant_id)
-            ).all()
-            
-            grades_data = []
-            total_points = 0
-            max_possible = 0
-            
-            for grade in grades:
-                total_points += grade.score
-                max_possible += grade.assignment.max_points
-                grades_data.append({
-                    "assignment": grade.assignment.name,
-                    "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
-                    "score": grade.score,
-                    "max_points": grade.assignment.max_points
-                })
-            
-            overall_percentage = (total_points / max_possible * 100) if max_possible > 0 else 0
-        
-        return StudentResponse(
-            id=student.id,
-            first_name=student.first_name,
-            last_name=student.last_name,
-            email=student.email,
-            grades=grades_data,
-            total_assignments=len(grades_data),
-            total_points=total_points,
-            max_possible=max_possible,
-            overall_percentage=overall_percentage
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Student lookup error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve student")
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    student = db.query(Student).filter(
+        Student.email == email.lower(),
+        Student.tenant_id == tenant_id
+    ).first()
+    
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    grades = db.query(Grade).filter(
+        Grade.student_id == student.id,
+        Grade.tenant_id == tenant_id
+    ).all()
+    
+    grades_data = []
+    total_points = 0
+    max_possible = 0
+    
+    for grade in grades:
+        total_points += grade.score
+        max_possible += grade.assignment.max_points
+        grades_data.append({
+            "assignment": grade.assignment.name,
+            "date": grade.assignment.date.isoformat() if grade.assignment.date else None,
+            "score": grade.score,
+            "max_points": grade.assignment.max_points,
+            "tags": [grade.class_tag] if grade.class_tag else []
+        })
+    
+    overall_percentage = (total_points / max_possible * 100) if max_possible > 0 else 0
+    
+    return {
+        "id": student.id,
+        "first_name": student.first_name,
+        "last_name": student.last_name,
+        "email": student.email,
+        "grades": grades_data,
+        "total_assignments": len(grades_data),
+        "total_points": total_points,
+        "max_possible": max_possible,
+        "overall_percentage": overall_percentage
+    }
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request, db: Session = Depends(get_db)):
+    return await dashboard(request, db)
+
+
+@app.get("/student-portal", response_class=HTMLResponse)
+async def student_portal(request: Request):
+    return templates.TemplateResponse("student_portal.html", {"request": request})
+
 
 @app.get("/api/downloadTemplate")
 async def download_template():
-    """Download CSV template file"""
-    try:
-        template_data = {
-            "Last Name": ["Smith", "Johnson", "Williams"],
-            "First Name": ["John", "Jane", "Bob"],
-            "Email": ["john.smith@example.com", "jane.johnson@example.com", "bob.williams@example.com"],
-            "Assignment 1": [85, 92, 78],
-            "Assignment 2": [88, 95, 82],
-            "Quiz 1": [90, 88, 85]
+    # Create a sample CSV template
+    template_data = {
+        "Last Name": ["Smith", "Johnson", "Williams"],
+        "First Name": ["John", "Jane", "Bob"],
+        "Email": ["john.smith@example.com", "jane.johnson@example.com", "bob.williams@example.com"],
+        "Assignment 1": [85, 92, 78],
+        "Assignment 2": [88, 95, 82],
+        "Quiz 1": [90, 88, 85]
+    }
+    
+    df = pd.DataFrame(template_data)
+    
+    # Create CSV content
+    csv_content = df.to_csv(index=False)
+    
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=grade_template.csv"
         }
-        
-        df = pd.DataFrame(template_data)
-        csv_content = df.to_csv(index=False)
-        
-        return Response(
-            content=csv_content,
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": "attachment; filename=grade_template.csv",
-                "Content-Type": "text/csv; charset=utf-8"
-            }
-        )
-    except Exception as e:
-        logger.error(f"Template download error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate template")
+    )
 
-@app.get("/api/dashboard/stats", response_model=DashboardStats)
+
+@app.get("/api/dashboard/stats")
 async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
-    """Get dashboard statistics"""
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        
-        with handle_db_errors():
-            total_students = db.query(Student).filter(Student.tenant_id == tenant_id).count()
-            total_assignments = db.query(Assignment).filter(Assignment.tenant_id == tenant_id).count()
-            total_grades = db.query(Grade).filter(Grade.tenant_id == tenant_id).count()
-        
-        return DashboardStats(
-            total_students=total_students,
-            total_assignments=total_assignments,
-            total_grades=total_grades
-        )
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    total_students = db.query(Student).filter(Student.tenant_id == tenant_id).count()
+    total_assignments = db.query(Assignment).filter(Assignment.tenant_id == tenant_id).count()
+    total_grades = db.query(Grade).filter(Grade.tenant_id == tenant_id).count()
+    
+    return {
+        "total_students": total_students,
+        "total_assignments": total_assignments,
+        "total_grades": total_grades
+    }
+
         
     except HTTPException:
         raise

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Grade Insight - Teacher Dashboard</title>
     <link rel="stylesheet" href="/static/css/compact.css">
+    <script src="/static/js/shared-utils.js"></script>
 </head>
 <body>
     <div class="header">
@@ -18,7 +19,6 @@
         <a href="#" class="nav-button active">📋 Dashboard</a>
     </div>
 
-    <!-- Dashboard Stats Section -->
     <div class="container">
         <div class="stats-section" id="statsSection">
             <div class="stat-card">
@@ -37,7 +37,6 @@
 
         <div class="controls">
             <div class="search-section">
-                <!-- Student Search -->
                 <div class="search-row">
                     <label class="search-label">Search Students:</label>
                     <input
@@ -50,7 +49,6 @@
                     <button id="clearSearch" class="clear-search" style="display: none;">Clear</button>
                 </div>
                 
-                <!-- Tag Search -->
                 <div class="search-row">
                     <label class="search-label">Filter Assignments:</label>
                     <input
@@ -73,8 +71,7 @@
                     <thead>
                         <tr id="tableHeader">
                             <th class="student-info">Student</th>
-                            <!-- Assignment headers will be added here dynamically -->
-                        </tr>
+                            </tr>
                     </thead>
                     <tbody id="tableBody">
                         <tr>
@@ -86,8 +83,6 @@
         </div>
     </div>
 
-    <!-- Load JavaScript -->
-    <script src="/static/js/shared-utils.js"></script>
     <script>
         // Dashboard-specific JavaScript
         document.addEventListener('DOMContentLoaded', function() {
@@ -96,31 +91,32 @@
             // Load dashboard stats
             loadDashboardStats();
             
-            // Initialize the grades table (this should trigger the GradesTable class)
+            // Initialize the GradesTable
             if (typeof GradesTable !== 'undefined') {
                 console.log('Initializing GradesTable...');
                 const gradesTable = new GradesTable();
+
+                // Setup search event listeners using GradeUtils.setupSearch
+                GradeUtils.setupSearch('studentSearch', 'clearSearch', gradesTable.filterStudents.bind(gradesTable), 'student');
+                GradeUtils.setupSearch('tagSearch', 'clearTagSearch', gradesTable.filterAssignments.bind(gradesTable), 'assignment');
             } else {
-                console.error('GradesTable class not found in shared-utils.js');
-                // Fallback: load data manually
+                console.error('GradesTable class not found in shared-utils.js. Falling back to manual load.');
+                // Fallback: load data manually if GradesTable is not available
                 loadGradesManually();
             }
         });
 
-        // Load dashboard statistics
+        // Load dashboard statistics using GradeUtils.fetchJson
         async function loadDashboardStats() {
             try {
-                const response = await fetch('/api/dashboard/stats');
-                if (response.ok) {
-                    const stats = await response.json();
-                    document.getElementById('totalStudents').textContent = stats.total_students || 0;
-                    document.getElementById('totalAssignments').textContent = stats.total_assignments || 0;
-                    document.getElementById('totalGrades').textContent = stats.total_grades || 0;
-                } else {
-                    console.error('Failed to load dashboard stats');
-                }
+                const stats = await GradeUtils.fetchJson('/api/dashboard/stats');
+                document.getElementById('totalStudents').textContent = stats.total_students || 0;
+                document.getElementById('totalAssignments').textContent = stats.total_assignments || 0;
+                document.getElementById('totalGrades').textContent = stats.total_grades || 0;
             } catch (error) {
                 console.error('Error loading dashboard stats:', error);
+                // Optionally show a user-friendly error message
+                // GradeUtils.showNotification('statsSection', 'Failed to load dashboard statistics.', 'error');
             }
         }
 
@@ -128,13 +124,7 @@
         async function loadGradesManually() {
             try {
                 console.log('Loading grades manually...');
-                const response = await fetch('/api/grades-table');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
+                const data = await GradeUtils.fetchJson('/api/grades-table');
                 console.log('Loaded data:', data);
                 
                 if (data.students && data.students.length > 0) {
@@ -144,11 +134,11 @@
                 }
             } catch (error) {
                 console.error('Error loading grades:', error);
-                showErrorMessage('Failed to load grades. Please check your connection and try again.');
+                showErrorMessage('Failed to load grades. Please check your connection and try again: ' + GradeUtils.escapeHtml(error.message));
             }
         }
 
-        // Basic table rendering function
+        // Basic table rendering function (adapted to use GradeUtils.escapeHtml)
         function renderBasicTable(students) {
             const tableBody = document.getElementById('tableBody');
             const tableHeader = document.getElementById('tableHeader');
@@ -183,7 +173,7 @@
                 const th = document.createElement('th');
                 th.className = 'assignment-header';
                 th.innerHTML = `
-                    <div class="assignment-name">${escapeHtml(assignment.name)}</div>
+                    <div class="assignment-name">${GradeUtils.escapeHtml(assignment.name)}</div>
                     <div class="assignment-info">${assignment.max_points} pts</div>
                 `;
                 tableHeader.appendChild(th);
@@ -195,6 +185,7 @@
                 row.style.cursor = 'pointer';
                 row.addEventListener('click', () => {
                     if (student.email) {
+                        // Use GradeUtils for navigation or specific student details
                         window.location.href = `/api/student/${encodeURIComponent(student.email)}`;
                     }
                 });
@@ -203,8 +194,8 @@
                 const studentCell = document.createElement('td');
                 studentCell.className = 'student-info';
                 studentCell.innerHTML = `
-                    <div class="student-name">${escapeHtml(student.last_name)}, ${escapeHtml(student.first_name)}</div>
-                    <div class="student-email">${escapeHtml(student.email)}</div>
+                    <div class="student-name">${GradeUtils.escapeHtml(student.last_name)}, ${GradeUtils.escapeHtml(student.first_name)}</div>
+                    <div class="student-email">${GradeUtils.escapeHtml(student.email)}</div>
                 `;
                 row.appendChild(studentCell);
 
@@ -215,8 +206,8 @@
                     
                     const grade = student.grades.find(g => g.assignment === assignment.name);
                     if (grade) {
-                        const percentage = Math.round((grade.score / grade.max_points) * 100);
-                        const gradeClass = percentage >= 80 ? 'grade-good' : percentage >= 60 ? 'grade-medium' : 'grade-poor';
+                        const percentage = GradeUtils.calculatePercentage(grade.score, grade.max_points);
+                        const gradeClass = GradeUtils.getGradeClass(percentage); // Use GradeUtils for grade styling
                         gradeCell.innerHTML = `
                             <div class="grade-score ${gradeClass}">${grade.score}/${grade.max_points}</div>
                             <div class="grade-percentage">${percentage}%</div>
@@ -238,6 +229,7 @@
             }
         }
 
+        // Functions for displaying messages (adapted to use GradeUtils.escapeHtml)
         function showNoDataMessage() {
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = `
@@ -260,21 +252,12 @@
                     <td colspan="100%" class="error">
                         <div style="text-align: center; padding: 40px;">
                             <h3>Error Loading Data</h3>
-                            <p>${escapeHtml(message)}</p>
+                            <p>${message}</p>
                             <button onclick="location.reload()" class="nav-button">🔄 Retry</button>
                         </div>
                     </td>
                 </tr>
             `;
-        }
-
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
         }
     </script>
 <style>
