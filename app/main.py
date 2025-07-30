@@ -622,13 +622,13 @@ async def get_dashboard_stats(request: Request, db: Session = Depends(get_db)):
     }
 
 try:
-    # your code here that might raise an exception
+    # some code here, for example:
+    result = get_dashboard_stats()
 except HTTPException:
     raise
 except Exception as e:
     logger.error(f"Dashboard stats error: {e}")
     raise HTTPException(status_code=500, detail="Failed to retrieve statistics")
-
 
 @app.get("/health")
 async def health_check():
