@@ -3,6 +3,7 @@ import io
 import os
 import re
 import logging
+import traceback
 import email_validator
 from fastapi import FastAPI, Request, HTTPException, Depends, File, UploadFile, Form, status
 from fastapi.staticfiles import StaticFiles
@@ -315,11 +316,13 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             "dashboard.html",
             {"request": request, "students": students, "tenant": tenant_id}
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Dashboard error: {e}")
-        raise HTTPException(status_code=500, detail="Dashboard temporarily unavailable")
+
+        except HTTPException as he:
+    raise he  # Let FastAPI handle known HTTPExceptions
+
+except Exception as e:
+    logger.exception("Dashboard error")  # Logs full traceback
+    raise HTTPException(status_code=500, detail="Dashboard temporarily unavailable")
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
@@ -393,7 +396,11 @@ async def upload_csv(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Upload error: {e}") except ValidationError as ve:
+        return JSONResponse(status_code=422, content={"detail": str(ve)})
+    except Exception as e:
         logger.error(f"Upload error: {e}")
+        return JSONResponse(status_code=500, content={"detail": "File upload failed"})
         raise HTTPException(status_code=500, detail="File upload failed")
 
 @app.get("/api/grades-table")
