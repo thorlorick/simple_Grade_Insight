@@ -339,6 +339,8 @@ async def upload_csv(
     new_tags: str = Form(None),  # Optional new tags as comma-separated string
     db: Session = Depends(get_db)
 ):
+    import traceback
+    
     try:
         tenant_id = get_tenant_from_host(request.headers.get("host"))
         
@@ -529,7 +531,6 @@ async def upload_csv(
         raise
     except Exception as e:
         print(f"Unexpected error in upload_csv: {str(e)}")
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
