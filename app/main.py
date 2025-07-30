@@ -329,6 +329,7 @@ async def upload_page(request: Request):
     """Upload page for CSV files"""
     return templates.TemplateResponse("upload.html", {"request": request})
 
+
 @app.post("/upload")
 async def upload_csv(
     request: Request,
@@ -337,120 +338,114 @@ async def upload_csv(
     class_tag: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    try:
-        tenant_id = get_tenant_from_host(request.headers.get("host"))
-        
-        # Get or create tenant
-        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        if not tenant:
-            tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
-            db.add(tenant)
+    tenant_id = get_tenant_from_host(request.headers.get("host"))
+    
+    # Get or create tenant
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        tenant = Tenant(id=tenant_id, name=tenant_id.replace("_", " ").title())
+        db.add(tenant)
+        db.commit()
+
+    # Read CSV content
+    content = await file.read()
+    df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+
+    # Get or create teacher
+    teacher = db.query(Teacher).filter(
+        Teacher.name == teacher_name,
+        Teacher.tenant_id == tenant_id
+    ).first()
+
+    if not teacher:
+        teacher = Teacher(name=teacher_name, tenant_id=tenant_id)
+        db.add(teacher)
+        db.commit()
+        db.refresh(teacher)
+
+    # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
+    assignment_columns = [col for col in df.columns if col not in ("Last Name", "First Name", "Email")]
+
+    # Default max points
+    DEFAULT_MAX_POINTS = 100.0
+
+    # Cache assignments by name for this tenant to avoid repeated queries
+    assignments_cache = {}
+
+    for col in assignment_columns:
+        assignment = db.query(Assignment).filter(
+            Assignment.name == col,
+            Assignment.tenant_id == tenant_id
+        ).first()
+        if not assignment:
+            assignment = Assignment(
+                name=col,
+                tenant_id=tenant_id,
+                max_points=DEFAULT_MAX_POINTS
+            )
+            db.add(assignment)
             db.commit()
+            db.refresh(assignment)
+        assignments_cache[col] = assignment
 
-        # Read CSV content
-        content = await file.read()
-        df = pd.read_csv(io.StringIO(content.decode('utf-8')))
+    # Process each row (student)
+    for _, row in df.iterrows():
+        first_name = row["First Name"]
+        last_name = row["Last Name"]
+        email = row["Email"]
 
-        # Get or create teacher
-        teacher = db.query(Teacher).filter(
-            Teacher.name == teacher_name,
-            Teacher.tenant_id == tenant_id
+        # Get or create student by email + tenant
+        student = db.query(Student).filter(
+            Student.email == email,
+            Student.tenant_id == tenant_id
         ).first()
 
-        if not teacher:
-            teacher = Teacher(name=teacher_name, tenant_id=tenant_id)
-            db.add(teacher)
+        if not student:
+            student = Student(
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                tenant_id=tenant_id
+            )
+            db.add(student)
             db.commit()
-            db.refresh(teacher)
+            db.refresh(student)
 
-        # Determine assignment columns (exclude 'Last Name', 'First Name', 'Email')
-        assignment_columns = [col for col in df.columns if col not in ("Last Name", "First Name", "Email")]
+        # Create grades for each assignment column
+        for assignment_name in assignment_columns:
+            score_value = row[assignment_name]
+            if pd.isna(score_value):
+                continue  # skip if no grade
 
-        # Default max points
-        DEFAULT_MAX_POINTS = 100.0
+            assignment = assignments_cache[assignment_name]
 
-        # Cache assignments by name for this tenant
-        assignments_cache = {}
-
-        for col in assignment_columns:
-            assignment = db.query(Assignment).filter(
-                Assignment.name == col,
-                Assignment.tenant_id == tenant_id
+            # Check if grade already exists (unique constraint)
+            existing_grade = db.query(Grade).filter(
+                Grade.student_id == student.id,
+                Grade.assignment_id == assignment.id,
+                Grade.tenant_id == tenant_id
             ).first()
-            if not assignment:
-                assignment = Assignment(
-                    name=col,
+
+            if existing_grade:
+                # Update existing grade
+                existing_grade.score = float(score_value)
+                existing_grade.teacher_id = teacher.id
+                existing_grade.class_tag = class_tag
+            else:
+                # New grade
+                grade = Grade(
+                    student_id=student.id,
+                    teacher_id=teacher.id,
+                    assignment_id=assignment.id,
                     tenant_id=tenant_id,
-                    max_points=DEFAULT_MAX_POINTS
+                    score=float(score_value),
+                    class_tag=class_tag
                 )
-                db.add(assignment)
-                db.commit()
-                db.refresh(assignment)
-            assignments_cache[col] = assignment
+                db.add(grade)
 
-        # Process each row (student)
-        for _, row in df.iterrows():
-            first_name = row["First Name"]
-            last_name = row["Last Name"]
-            email = row["Email"]
+    db.commit()
+    return {"message": "CSV uploaded successfully"}
 
-            # Get or create student by email + tenant
-            student = db.query(Student).filter(
-                Student.email == email,
-                Student.tenant_id == tenant_id
-            ).first()
-
-            if not student:
-                student = Student(
-                    first_name=first_name,
-                    last_name=last_name,
-                    email=email,
-                    tenant_id=tenant_id
-                )
-                db.add(student)
-                db.commit()
-                db.refresh(student)
-
-            # Create grades for each assignment column
-            for assignment_name in assignment_columns:
-                score_value = row[assignment_name]
-                if pd.isna(score_value):
-                    continue  # skip if no grade
-
-                assignment = assignments_cache[assignment_name]
-
-                # Check if grade already exists
-                existing_grade = db.query(Grade).filter(
-                    Grade.student_id == student.id,
-                    Grade.assignment_id == assignment.id,
-                    Grade.tenant_id == tenant_id
-                ).first()
-
-                if existing_grade:
-                    # Update existing grade
-                    existing_grade.score = float(score_value)
-                    existing_grade.teacher_id = teacher.id
-                    existing_grade.class_tag = class_tag
-                else:
-                    # New grade
-                    grade = Grade(
-                        student_id=student.id,
-                        teacher_id=teacher.id,
-                        assignment_id=assignment.id,
-                        tenant_id=tenant_id,
-                        score=float(score_value),
-                        class_tag=class_tag
-                    )
-                    db.add(grade)
-
-        db.commit()
-        return {"message": "CSV uploaded successfully"}
-
-    except Exception as e:
-        print(f"Error in upload: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-            
 
 @app.get("/api/grades-table")
 async def get_grades_table(request: Request, db: Session = Depends(get_db)):
