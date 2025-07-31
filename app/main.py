@@ -317,13 +317,6 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             {"request": request, "students": students, "tenant": tenant_id}
         )
 
-        except HTTPException as he:
-            raise he  # Let FastAPI handle known HTTPExceptions
-
-        except Exception as e:
-            logger.exception("Dashboard error")  # Logs full traceback
-            raise HTTPException(status_code=500, detail="Dashboard temporarily unavailable")
-
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
     """Upload page for CSV files"""
