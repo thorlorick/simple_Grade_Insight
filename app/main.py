@@ -316,6 +316,13 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             "dashboard.html",
             {"request": request, "students": students, "tenant": tenant_id}
         )
+    try:
+    result = get_dashboard_stats()
+except HTTPException:
+    raise
+except Exception as e:
+    logger.error(f"Dashboard stats error: {e}")
+    raise HTTPException(status_code=500, detail="Failed to retrieve statistics")    
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
