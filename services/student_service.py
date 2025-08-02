@@ -3,8 +3,8 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from database import get_db
-from models import Student, Grade, Assignment
+from app.database import get_db
+from app.models import Student, Grade, Assignment
 
 
 class StudentService:

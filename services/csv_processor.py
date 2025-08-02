@@ -9,7 +9,7 @@ from database import get_db
 from utils.exceptions import ValidationError, ProcessingError
 from services.student_service import StudentService
 from services.assignment_service import AssignmentService
-from models import Student, Assignment, Grade
+from app.models import Student, Assignment, Grade
 
 
 class CSVProcessor:
