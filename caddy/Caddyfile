@@ -1,4 +1,4 @@
-# Fixed syntax - note the curly braces and env. prefix
+
 *.gradeinsight.com, gradeinsight.com {
     tls {
         dns cloudflare {
