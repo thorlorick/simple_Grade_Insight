@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends, File, UploadFile, 
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, Response
+from fastapi import HTTPException  
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
@@ -318,11 +319,12 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
         )
     try:
         result = get_dashboard_stats()
+        return result  # Don't forget this!
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Dashboard stats error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve statistics")    
+        raise HTTPException(status_code=500, detail="Failed to retrieve statistics") 
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
