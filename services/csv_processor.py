@@ -5,7 +5,7 @@ import io
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, date
 from sqlalchemy.orm import Session
-from utils.database import get_db
+from database import get_db
 from utils.exceptions import ValidationError, ProcessingError
 from services.student_service import StudentService
 from services.assignment_service import AssignmentService
