@@ -3,7 +3,7 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from utils.database import get_db
+from database import get_db
 from models import Student, Grade, Assignment
 
 
