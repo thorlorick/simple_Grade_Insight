@@ -108,7 +108,11 @@ async def upload_csv(
         assignment_service = AssignmentService(db)
         
         # Process CSV using pandas for the existing format
-        df = pd.read_csv(io.StringIO(csv_content))
+        try:
+            df = pd.read_csv(io.StringIO(csv_content))
+        except Exception as parse_err:
+            raise HTTPException(status_code=400, detail=f"CSV parsing failed: {parse_err}")
+
         
         # Validate required columns
         required_columns = {"Last Name", "First Name", "Email"}
