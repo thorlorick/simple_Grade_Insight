@@ -72,7 +72,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     
     # Use StudentService to get students
     student_service = StudentService(db)
-    students = student_service.get_students_by_tenant(tenant_id)
+    students = student_service.get_all_students()
 
     return templates.TemplateResponse(
         "dashboard.html",
