@@ -8,10 +8,10 @@
     <script src="/static/js/shared-utils.js"></script>
 </head>
 <body>
-    <div class="container">
+    <div class="container"> 
         <div class="header">
             <h1>Upload CSV File</h1>
-            <p>Upload your grade data and organize it with tags ONLY IF YOU WANT TO</p>
+            <p>Upload your grade data and organize it Teacher Name and Subject Tags</p>
         </div>
 
         <div class="navigation">
@@ -20,7 +20,7 @@
 
         <div id="messageContainer" class="message"></div>
 
-        <form id="uploadForm" enctype="multipart/form-data">
+        <form id="uploadForm" method="post" action="/upload" enctype="multipart/form-data">
             <div class="form-group" style="margin-bottom: 24px;">
                 <label for="fileInput" style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Select CSV File</label>
                 <input id="fileInput" name="file" type="file" accept=".csv" required class="search-input">
